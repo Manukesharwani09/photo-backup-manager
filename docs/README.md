@@ -14,6 +14,7 @@ Read in this order if you're new (human or agent):
 | 8 | [setup/local-dev.md](setup/local-dev.md) | How to build, run and connect accounts locally |
 | 9 | [setup/google-cloud.md](setup/google-cloud.md) | Google Cloud project, OAuth client, test users |
 | 10 | [progress/worklog.md](progress/worklog.md) | What was done, when, and the gotchas found |
+| 11 | [app/design-brief.md](app/design-brief.md) | **Android app design brief:** screens, flows, states, constraints (for design agents) |
 | — | [product/drive-alternative-discussion.md](product/drive-alternative-discussion.md) | Why Google Drive was not chosen (discussion only) |
 
 ## Folder structure
@@ -25,6 +26,7 @@ docs/
   product/                   what & why (requirements, discussions)
   architecture/              how (design, code layout, API feasibility)
   setup/                     how to run it (local dev, Google Cloud)
+  app/                       Android app docs (design brief); the app's code lives in a separate repo
   progress/                  status (current) + worklog (history)
 ```
 

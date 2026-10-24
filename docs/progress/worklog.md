@@ -2,6 +2,11 @@
 
 One entry per task (not per commit), newest first. Each entry says what was done, which commits it covers, and anything a future agent must know.
 
+## 2026-10-24: App design brief
+- Added `docs/app/design-brief.md` so a separate agent can start the Android app's UX/UI design while the backend proof of concept continues.
+- It covers: screens, flows, vocabulary, edge-case states, platform constraints, provisional backend data, and open design questions.
+- Navigation and styling are marked as proposals (not confirmed).
+
 ## 2026-10-24: Tests + sign-in edge-case fixes
 - Added unit tests (`crypto`, `config`, `google`, `api`) and DB integration tests (`store`, against a disposable `photobackup_test` DB). 26 tests, all passing.
 - Fixed 2 gaps found while reviewing:

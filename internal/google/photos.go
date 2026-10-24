@@ -136,8 +136,25 @@ func BatchCreate(ctx context.Context, client *http.Client, albumID string, items
 	return res, nil
 }
 
-// Found reports, for each requested id, whether Google still has the item (app-created only).
-func BatchGet(ctx context.Context, client *http.Client, ids []string) (map[string]bool, error) {
+// MediaItem is the part of a Library API media item the backend uses.
+type MediaItem struct {
+	ID         string
+	BaseURL    string // valid ~60 minutes; append "=d" (photo) or "=dv" (video) to download the file
+	MimeType   string
+	FileName   string
+	ProductURL string
+}
+
+// DownloadURL is the link that returns the original file bytes.
+func (m MediaItem) DownloadURL() string {
+	if strings.HasPrefix(m.MimeType, "video/") {
+		return m.BaseURL + "=dv"
+	}
+	return m.BaseURL + "=d"
+}
+
+// BatchGet returns the requested items Google still has (app-created only); missing ids are absent.
+func BatchGet(ctx context.Context, client *http.Client, ids []string) (map[string]MediaItem, error) {
 	if len(ids) > MaxBatch {
 		return nil, fmt.Errorf("batchGet: %d ids exceeds %d", len(ids), MaxBatch)
 	}
@@ -148,20 +165,22 @@ func BatchGet(ctx context.Context, client *http.Client, ids []string) (map[strin
 	var out struct {
 		MediaItemResults []struct {
 			MediaItem struct {
-				ID string `json:"id"`
+				ID         string `json:"id"`
+				BaseURL    string `json:"baseUrl"`
+				MimeType   string `json:"mimeType"`
+				Filename   string `json:"filename"`
+				ProductURL string `json:"productUrl"`
 			} `json:"mediaItem"`
 		} `json:"mediaItemResults"`
 	}
 	if err := getJSON(ctx, client, PhotosAPI+"/mediaItems:batchGet?"+q.Encode(), &out); err != nil {
 		return nil, err
 	}
-	found := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		found[id] = false
-	}
+	found := make(map[string]MediaItem, len(ids))
 	for _, r := range out.MediaItemResults {
-		if r.MediaItem.ID != "" {
-			found[r.MediaItem.ID] = true
+		m := r.MediaItem
+		if m.ID != "" {
+			found[m.ID] = MediaItem{ID: m.ID, BaseURL: m.BaseURL, MimeType: m.MimeType, FileName: m.Filename, ProductURL: m.ProductURL}
 		}
 	}
 	return found, nil

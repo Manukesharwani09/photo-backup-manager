@@ -42,12 +42,19 @@ func main() {
 	dir := flag.String("dir", "testdata/phone", "folder that plays the phone's storage")
 	statePath := flag.String("state", "testdata/phonesim-device.json", "where the simulated device id is kept")
 	dryRun := flag.Bool("dry-run", false, "sync only; don't upload")
+	restore := flag.String("restore", "", "restore this folder from Google into -dir instead of backing up")
 	flag.Parse()
 	ctx := context.Background()
 
 	deviceID, err := loadOrRegister(*server, *statePath)
 	if err != nil {
 		log.Fatalf("device: %v", err)
+	}
+	if *restore != "" {
+		if err := restoreFolder(ctx, *server, deviceID, *restore, *dir); err != nil {
+			log.Fatalf("restore: %v", err)
+		}
+		return
 	}
 	files, local, err := scan(*dir)
 	if err != nil {
@@ -113,6 +120,67 @@ func main() {
 	for _, r := range done.Results {
 		fmt.Printf("  result: file %v %v verified=%v %v %v\n", r["file_id"], r["status"], r["verified"], r["product_url"], r["message"])
 	}
+}
+
+// restoreFolder downloads a folder's backed-up photos into dir at their original paths and reports
+// the hashes of the bytes it received. The real app would also write GPS back into EXIF here.
+func restoreFolder(ctx context.Context, server string, deviceID int64, folder, dir string) error {
+	var plan struct {
+		Items []struct {
+			MediaID      int64    `json:"media_id"`
+			RelativePath string   `json:"relative_path"`
+			DisplayName  string   `json:"display_name"`
+			AccountID    int64    `json:"account_id"`
+			DownloadURL  string   `json:"download_url"`
+			GPSLat       *float64 `json:"gps_lat"`
+			GPSLng       *float64 `json:"gps_lng"`
+		} `json:"items"`
+		AlreadyOnDevice int      `json:"already_on_device"`
+		MissingInGoogle []string `json:"missing_in_google"`
+		Tokens          map[string]struct {
+			AccessToken string `json:"access_token"`
+		} `json:"tokens"`
+	}
+	if err := post(server+"/restore/plan", map[string]any{"device_id": deviceID, "folder": folder}, &plan); err != nil {
+		return err
+	}
+	fmt.Printf("restore %s: %d to download, %d already on device, %d missing in Google\n",
+		folder, len(plan.Items), plan.AlreadyOnDevice, len(plan.MissingInGoogle))
+	var done []map[string]any
+	for _, it := range plan.Items {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, it.DownloadURL, nil)
+		req.Header.Set("Authorization", "Bearer "+plan.Tokens[fmt.Sprint(it.AccountID)].AccessToken)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("download %s: %v %s", it.DisplayName, err, resp.Status)
+		}
+		target := filepath.Join(dir, filepath.FromSlash(it.RelativePath), it.DisplayName)
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(target, data, 0o644); err != nil {
+			return err
+		}
+		sum := sha256.Sum256(data)
+		gps := "none stored"
+		if it.GPSLat != nil {
+			gps = fmt.Sprintf("%.5f,%.5f (write back if missing)", *it.GPSLat, *it.GPSLng)
+		}
+		fmt.Printf("  restored %s/%s (%d bytes) gps: %s\n", it.RelativePath, it.DisplayName, len(data), gps)
+		done = append(done, map[string]any{"media_id": it.MediaID, "relative_path": it.RelativePath,
+			"display_name": it.DisplayName, "size": len(data), "sha256": hex.EncodeToString(sum[:])})
+	}
+	var res map[string]any
+	if err := post(server+"/restore/done", map[string]any{"device_id": deviceID, "items": done}, &res); err != nil {
+		return err
+	}
+	fmt.Printf("restore done: %v\n", res)
+	return nil
 }
 
 type planItem struct {

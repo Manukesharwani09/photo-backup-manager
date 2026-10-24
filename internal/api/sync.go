@@ -473,7 +473,7 @@ func (s *Server) verify(ctx context.Context, client *http.Client, itemToRecord m
 		}
 		var ok []int64
 		for _, id := range chunk {
-			if found[id] {
+			if _, present := found[id]; present {
 				ok = append(ok, itemToRecord[id])
 			}
 		}
@@ -482,7 +482,7 @@ func (s *Server) verify(ctx context.Context, client *http.Client, itemToRecord m
 			continue
 		}
 		for _, res := range results {
-			if found[res.MediaItemID] {
+			if _, present := found[res.MediaItemID]; present {
 				res.Verified = true
 			}
 		}

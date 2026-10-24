@@ -102,14 +102,17 @@ func TestBatchGetReportsMissing(t *testing.T) {
 		if got := r.URL.Query()["mediaItemIds"]; len(got) != 2 {
 			t.Errorf("ids %v", got)
 		}
-		io.WriteString(w, `{"mediaItemResults":[{"mediaItem":{"id":"a"}},{"status":{"code":5,"message":"not found"}}]}`)
+		io.WriteString(w, `{"mediaItemResults":[{"mediaItem":{"id":"a","baseUrl":"https://lh3/x","mimeType":"image/jpeg"}},{"status":{"code":5,"message":"not found"}}]}`)
 	})
 	found, err := BatchGet(context.Background(), http.DefaultClient, []string{"a", "gone"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !found["a"] || found["gone"] {
+	if _, ok := found["gone"]; ok || found["a"].DownloadURL() != "https://lh3/x=d" {
 		t.Fatalf("got %v", found)
+	}
+	if v := (MediaItem{BaseURL: "u", MimeType: "video/mp4"}).DownloadURL(); v != "u=dv" {
+		t.Fatalf("video download url %q", v)
 	}
 }
 

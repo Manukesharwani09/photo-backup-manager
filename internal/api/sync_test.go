@@ -90,7 +90,8 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 		var res []map[string]any
 		for _, id := range r.URL.Query()["mediaItemIds"] {
 			if _, ok := f.items[id]; ok {
-				res = append(res, map[string]any{"mediaItem": map[string]string{"id": id}})
+				res = append(res, map[string]any{"mediaItem": map[string]string{"id": id,
+					"baseUrl": "https://lh3.fake/" + id, "mimeType": "image/jpeg", "productUrl": "https://photos.google.com/lr/" + id}})
 			}
 		}
 		json.NewEncoder(w).Encode(map[string]any{"mediaItemResults": res})

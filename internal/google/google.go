@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"golang.org/x/oauth2"
 	googleoauth "golang.org/x/oauth2/google"
@@ -22,6 +23,25 @@ var Scopes = []string{
 	"https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata",
 	"https://www.googleapis.com/auth/photoslibrary.edit.appcreateddata",
 	"https://www.googleapis.com/auth/drive.file",
+}
+
+// MissingScopes reports which required scopes are absent from Google's space-separated
+// granted-scope string. The user can untick individual permissions on the consent screen.
+func MissingScopes(granted string) []string {
+	have := map[string]bool{}
+	for _, s := range strings.Fields(granted) {
+		have[s] = true
+	}
+	var missing []string
+	for _, s := range Scopes {
+		if s == "openid" {
+			continue
+		}
+		if !have[s] {
+			missing = append(missing, s)
+		}
+	}
+	return missing
 }
 
 func OAuthConfig(clientID, clientSecret, redirectURL string) *oauth2.Config {

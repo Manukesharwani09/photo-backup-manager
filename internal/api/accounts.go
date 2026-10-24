@@ -6,8 +6,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,6 +58,11 @@ func (s *Server) oauthStart(w http.ResponseWriter, r *http.Request) {
 	rand.Read(b)
 	state := hex.EncodeToString(b)
 	s.mu.Lock()
+	for k, p := range s.states { // drop abandoned sign-ins
+		if time.Now().After(p.expires) {
+			delete(s.states, k)
+		}
+	}
 	s.states[state] = pendingAuth{role: role, expires: time.Now().Add(10 * time.Minute)}
 	s.mu.Unlock()
 	http.Redirect(w, r, google.AuthURL(s.OAuth, state), http.StatusFound)
@@ -86,6 +93,11 @@ func (s *Server) oauthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Google did not return a refresh token; remove the app's access at myaccount.google.com/permissions and retry", http.StatusBadGateway)
 		return
 	}
+	granted, _ := tok.Extra("scope").(string)
+	if missing := google.MissingScopes(granted); len(missing) > 0 {
+		http.Error(w, "Some permissions were not granted (all checkboxes must be ticked). Missing: "+strings.Join(missing, ", ")+". Start again at /oauth/start.", http.StatusBadRequest)
+		return
+	}
 	email, err := google.Email(ctx, s.OAuth.Client(ctx, tok))
 	if err != nil {
 		httpError(w, "read account email", err)
@@ -97,6 +109,10 @@ func (s *Server) oauthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, err := s.Store.UpsertAccount(ctx, s.UserID, email, pending.role, enc)
+	if errors.Is(err, store.ErrPrimaryExists) {
+		http.Error(w, "Another account is already primary. Connect "+email+" with role=overflow instead.", http.StatusConflict)
+		return
+	}
 	if err != nil {
 		httpError(w, "save account", err)
 		return

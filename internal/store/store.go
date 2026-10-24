@@ -4,6 +4,7 @@ package store
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -66,13 +67,30 @@ type Account struct {
 	RefreshTokenEnc []byte
 }
 
-// UpsertAccount stores a connected Google account. The first account of a user opens its active period.
+// ErrPrimaryExists is returned when connecting a primary account while a different one is already primary.
+var ErrPrimaryExists = errors.New("another account is already primary")
+
+// UpsertAccount stores a connected Google account (reconnecting refreshes its token).
+// The first account of a user opens its active period. Only one account may be primary.
 func (s *Store) UpsertAccount(ctx context.Context, userID int64, email, role string, tokenEnc []byte) (int64, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback(ctx)
+
+	if role == "primary" {
+		var others int
+		err := tx.QueryRow(ctx, `
+			SELECT count(*) FROM account WHERE user_id = $1 AND role = 'primary' AND email <> $2`,
+			userID, email).Scan(&others)
+		if err != nil {
+			return 0, err
+		}
+		if others > 0 {
+			return 0, ErrPrimaryExists
+		}
+	}
 
 	var id int64
 	err = tx.QueryRow(ctx, `

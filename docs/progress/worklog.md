@@ -2,6 +2,13 @@
 
 One entry per task (not per commit), newest first. Each entry says what was done, which commits it covers, and anything a future agent must know.
 
+## 2026-10-24: Tests + sign-in edge-case fixes
+- Added unit tests (`crypto`, `config`, `google`, `api`) and DB integration tests (`store`, against a disposable `photobackup_test` DB). 26 tests, all passing.
+- Fixed 2 gaps found while reviewing:
+  1. **Unticked permissions.** Sign-in is now rejected with a clear message when the user unticks a permission on Google's consent screen. Previously the account would be saved and fail later.
+  2. **Two primaries.** Only one account can be `primary`. A second primary gets a 409, and you reconnect it as overflow.
+- Also: abandoned sign-in states are cleaned up on the next `/oauth/start`.
+
 ## 2026-10-24: Docs reorganised for agents
 - Docs moved into `product/`, `architecture/`, `setup/`, `progress/`, plus `decisions.md` and `open-questions.md`. Added `AGENTS.md` (agent entry point) and `CLAUDE.md` (imports AGENTS.md).
 - The old `04-open-questions.md` was split into `decisions.md`, `open-questions.md` and `progress/status.md`.

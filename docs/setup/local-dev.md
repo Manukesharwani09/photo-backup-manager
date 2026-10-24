@@ -21,6 +21,13 @@ gofmt -l . && go vet ./... && go build -o bin/server ./cmd/server
 ```
 Migrations run automatically on every start.
 
+## Tests
+```bash
+createdb photobackup_test   # once; disposable, every DB test wipes it
+TEST_DATABASE_URL='postgres:///photobackup_test?host=/var/run/postgresql' go test -count=1 ./...
+```
+Without `TEST_DATABASE_URL`, the DB tests in `internal/store` are skipped, and the rest still run. **Never point `TEST_DATABASE_URL` at `photobackup`.**
+
 ## Connect Google accounts
 Open these in a browser where the account is signed in:
 - `http://localhost:8080/oauth/start?role=primary`

@@ -132,7 +132,7 @@ Status: ✅ built · ⬜ planned. The live list is in `internal/api/` (routes ar
 | Endpoint | Status | Purpose |
 |---|---|---|
 | `GET /oauth/start?role=primary\|overflow` | ✅ | Start Google sign-in for one account (redirects to Google) |
-| `GET /oauth/callback` | ✅ | Google redirects here; the backend stores the encrypted refresh token and opens an `account_period` for the first account |
+| `GET /oauth/callback` | ✅ | Google redirects here. The backend stores the encrypted refresh token and opens an `account_period` for the first account. Rejects: forged/expired state (400), unticked permissions (400), a second primary account (409) |
 | `GET /accounts` | ✅ | Accounts, roles, full flag, active periods, live remaining storage |
 
 Planned (the paths may change while they're built):

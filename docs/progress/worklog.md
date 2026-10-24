@@ -2,6 +2,19 @@
 
 One entry per task (not per commit), newest first. Each entry says what was done, which commits it covers, and anything a future agent must know.
 
+## 2026-10-24: Account ownership + data-model doc
+- Commit `1b53e1b`. Migration 004:
+  - `account.google_sub`;
+  - unique `google_sub` and `lower(email)` across all owners;
+  - one primary per owner, as a partial unique index.
+- `UpsertAccount` returns `ErrLinkedElsewhere`, which the API turns into a 409. `google.Identity` now returns email + sub.
+- Tests:
+  - 5 ways another owner might try to link an existing account (primary/overflow, swapped roles, different email case, renamed email with the same sub);
+  - the DB refuses a second primary even when the Go check is bypassed.
+- Live DB migrated. The two live accounts get their `google_sub` filled in on their next reconnect.
+- Added `docs/architecture/data-model.md` (ER diagram, tables, which Go structs read which tables, account rules).
+- A4 attempt via photos.google.com: search never finished loading in a CDP-driven tab, so it stays a manual check. A5 has no samples. A6 isn't worth forcing.
+
 ## 2026-10-24: Cleanup, restore, similar, To delete, cloud check, dashboard (proof-of-concept steps 9–12, 15)
 - Commits: `97c7b3e` (cleanup), `70dbe5f` (restore), `931ac01` (similar + To delete), `7c36380` (cloud check + scheduler), `48d57c0` (dashboard + photos/where), `a646ebf` (count fix).
 - Live against real Google:

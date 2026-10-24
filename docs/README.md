@@ -8,7 +8,8 @@ Read in this order if you're new (human or agent):
 | 2 | [product/requirements.md](product/requirements.md) | What problem we solve; the 7 problems, FR-1…FR-9, scope |
 | 3 | [decisions.md](decisions.md) | Every confirmed decision, with date and reason |
 | 4 | [architecture/overview.md](architecture/overview.md) | Backend vs app split, data model, flows, API (built vs planned) |
-| 5 | [architecture/code-layout.md](architecture/code-layout.md) | Where code lives, conventions, env vars |
+| 5 | [architecture/data-model.md](architecture/data-model.md) | **DB tables ("entities"), relationships, account ownership rules** |
+| 5b | [architecture/code-layout.md](architecture/code-layout.md) | Where code lives, conventions, env vars |
 | 6 | [architecture/google-apis-feasibility.md](architecture/google-apis-feasibility.md) | What the Google Photos/Drive/Android APIs can and can't do |
 | 7 | [open-questions.md](open-questions.md) | Unanswered questions and assumptions still to verify |
 | 8 | [setup/local-dev.md](setup/local-dev.md) | How to build, run and connect accounts locally |

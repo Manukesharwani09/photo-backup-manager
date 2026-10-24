@@ -4,6 +4,7 @@ Confirmed decisions only. **Add a row only after the user explicitly confirms th
 
 | Date | Topic | Decision | Why / notes |
 |---|---|---|---|
+| 2026-10-24 | Account ownership | An owner has **one primary** Google account and any number of **overflow** accounts linked to it. **A Google account linked to one owner (in any role) can never be linked to another owner**, as primary or otherwise | Stated by the user. Enforced by DB unique indexes on `google_sub` and `lower(email)`, plus one primary per owner. See [architecture/data-model.md](architecture/data-model.md) |
 | 2026-10-24 | Repo layout | The repo root **is the backend**. No `backend/` subfolder; the Android app will be a separate service. | User correction |
 | 2026-10-24 | Google Cloud project | Project `photo-backup-manager` (no. 627633892991), owned by `mkesharwani125@gmail.com`, OAuth app in **Testing** mode | See [setup/google-cloud.md](setup/google-cloud.md) |
 | 2026-10-24 | Destination | **Google Photos**, not Google Drive | Search, faces, memories, sharing and viewer matter more than Drive's technical advantages. See [product/drive-alternative-discussion.md](product/drive-alternative-discussion.md) |

@@ -8,9 +8,9 @@ _None right now._
 ## Assumptions to verify in the proof of concept
 | # | Assumption | How it's checked | Status |
 |---|---|---|---|
-| A4 | Google Photos search finds text in the item `description` | Search the original path in Google Photos | ⬜ |
-| A5 | Motion photos and HEIC keep their motion and format after an API upload | Upload a sample and view it in Google Photos | ⬜ |
-| A6 | The exact error Google returns when an account is full | Observe it (hard to force; may need a nearly full test account). Meanwhile `google.IsStorageFull` matches code 8 or storage/quota wording | ⬜ |
+| A4 | Google Photos search finds text in the item `description` | Search the original path (e.g. `Bills`) in the Google Photos app | ⬜ The API has no text search. An attempt via photos.google.com driven over CDP never finished loading results (2026-10-24). Needs a manual search in the app |
+| A5 | Motion photos and HEIC keep their motion and format after an API upload | Upload a sample and view it in Google Photos | ⬜ No samples on the dev machine. Put a real phone HEIC and motion photo in `testdata/phone/DCIM/Camera` and run phonesim |
+| A6 | The exact error Google returns when an account is full | Observe it (hard to force; may need a nearly full test account). Meanwhile `google.IsStorageFull` matches code 8 or storage/quota wording. Any other failure leaves the file pending for retry | ⬜ Not worth forcing (it would mean filling ~12 GB); capture it when it happens naturally |
 
 ## Verified (moved out)
 - **A3, verified 2026-10-24:** `baseUrl=d` downloads **strip GPS** and change the bytes (different SHA-256, ~1% smaller; dimensions and DateTime kept). So restore needs GPS write-back on the phone and hash linking on the backend, which are both implemented.

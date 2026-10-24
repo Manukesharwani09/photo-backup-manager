@@ -167,7 +167,11 @@ The backend is being built and endpoint shapes **may change**, so design against
 | Similar | groups of look-alikes, with account and phone presence per photo |
 | Restore | photos of a folder with account, size, download link |
 
-Built today: account connect, account list with storage and periods. Everything else is planned: [../architecture/overview.md](../architecture/overview.md#backend-api).
+**Update 2026-10-24:** every row above now has a working backend endpoint (proof of concept, tested end-to-end and partly live against real Google). See [../architecture/overview.md](../architecture/overview.md#backend-api). Fields may still change before the app ships.
+
+Two confirmed facts that affect design:
+- Google strips GPS from downloads, so restore writes it back silently. No user action is needed.
+- Albums can't be deleted through the API, so the "🗑 To delete" album stays in Google Photos after it's emptied. The copy should say so.
 
 ## 8. Out of scope for v1
 - A full photo gallery, editing, or AI search (Google Photos does these).

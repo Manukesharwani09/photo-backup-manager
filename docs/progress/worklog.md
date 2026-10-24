@@ -2,6 +2,17 @@
 
 One entry per task (not per commit), newest first. Each entry says what was done, which commits it covers, and anything a future agent must know.
 
+## 2026-10-24: Real sign-in verified
+- Connected `mkesharwani125@gmail.com` (primary) and `tanyamishra12346789@gmail.com` (overflow), at the user's request, by driving Brave over CDP. No passwords were used; both accounts were already signed in.
+- Sign-in flow seen:
+  1. account chooser
+  2. "Google hasn't verified this app" → Continue
+  3. "Sign in to Photo Backup Manager" (email) → Continue
+  4. permissions screen with a "Select all" checkbox plus 4 permissions → Continue
+  5. callback
+- `/accounts` returned live quotas (12.08 GB and 14.96 GB free of 15 GB), and the primary account has an open active period.
+- A1 and A7 are verified.
+
 ## 2026-10-24: App design brief
 - Added `docs/app/design-brief.md` so a separate agent can start the Android app's UX/UI design while the backend proof of concept continues.
 - It covers: screens, flows, vocabulary, edge-case states, platform constraints, provisional backend data, and open design questions.

@@ -8,13 +8,15 @@ _None right now._
 ## Assumptions to verify in the proof of concept
 | # | Assumption | How it's checked | Status |
 |---|---|---|---|
-| A1 | The `drive.file` scope is enough for `about.get` → `storageQuota` | `GET /accounts` shows storage for a connected account | ⬜ Waiting for the first account sign-in |
 | A2 | An upload token created by the "phone" (using an access token the backend issued) can be used by the backend in `mediaItems.batchCreate` | Proof of concept step 3 | ⬜ |
 | A3 | `baseUrl=d` downloads strip GPS | Upload a photo with GPS, download it, compare EXIF | ⬜ |
 | A4 | Google Photos search finds text in the item `description` | Search the original path in Google Photos | ⬜ |
 | A5 | Motion photos and HEIC keep their motion and format after an API upload | Upload a sample and view it in Google Photos | ⬜ |
 | A6 | The exact error Google returns when an account is full | Observe it (hard to force; may need a nearly full test account) | ⬜ |
-| A7 | Requesting `openid` + `userinfo.email` (not declared on the consent screen) works in Testing mode | First sign-in succeeds | ⬜ |
+
+## Verified (moved out)
+- **A1, verified 2026-10-24:** the `drive.file` scope is enough for `about.get` → `storageQuota`.
+- **A7, verified 2026-10-24:** requesting `openid` + `userinfo.email` (not declared on the consent screen) works in Testing mode.
 
 ## For later (publishing)
 - Google OAuth verification for the sensitive Photos scopes, plus a privacy policy (we store users' tokens and photo metadata).

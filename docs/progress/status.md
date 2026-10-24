@@ -12,8 +12,8 @@ Legend: ✅ done · 🟡 built, not yet verified · ⬜ not started
 |---|---|---|---|
 | 0 | Google Cloud project, consent screen, scopes, test users, OAuth client, `.env` | ✅ | [../setup/google-cloud.md](../setup/google-cloud.md) |
 | 0b | Go skeleton, DB schema (9 tables), migrations, config, token encryption | ✅ | [../architecture/code-layout.md](../architecture/code-layout.md) |
-| 1 | **OAuth:** connect 2 accounts (primary + overflow), store encrypted refresh tokens, open `account_period` | 🟡 | `/oauth/start`, `/oauth/callback`. Unit and DB tests pass (see Test coverage). Real sign-in with both accounts still to do (waiting for the user) |
-| 13 | **Remaining space** per account (Drive `storageQuota`) | 🟡 | Part of `GET /accounts`. Verifies A1 in [../open-questions.md](../open-questions.md) |
+| 1 | **OAuth:** connect 2 accounts (primary + overflow), store encrypted refresh tokens, open `account_period` | ✅ | Verified 2026-10-24 with real accounts: `mkesharwani125@gmail.com` (primary, id 1, period open) and `tanyamishra12346789@gmail.com` (overflow, id 2). Tokens stored encrypted |
+| 13 | **Remaining space** per account (Drive `storageQuota`) | ✅ | Verified: `drive.file` is enough. Primary 12.08 GB free of 15 GB; overflow 14.96 GB free |
 | 2 | **Sync:** stand-in phone sends metadata + SHA-256; backend returns an upload plan | ⬜ | |
 | 3 | **Split upload:** phone uploads bytes with a backend-issued access token; backend runs `batchCreate` | ⬜ | Verifies A2 (the key unknown) |
 | 4 | **Albums + descriptions:** one album per folder (`DCIM › Camera`); description = original path | ⬜ | |
@@ -41,12 +41,12 @@ Run with: see [../setup/local-dev.md](../setup/local-dev.md#tests). 26 tests (30
 | `api` | bad role → 400; start redirects to Google with a strong state that remembers the role; forged, expired and reused states rejected; Google `error=` surfaced; abandoned states cleaned up |
 
 **Not covered yet:**
-- The real Google flow: code exchange, userinfo email, Drive quota. That needs the manual sign-in.
+- The real Google flow (code exchange, userinfo email, Drive quota) has no automated tests; it was verified manually on 2026-10-24.
 - Everything in rows 2–14, which isn't built yet.
 
 ## Next action
-1. The user connects `mkesharwani125@gmail.com` (primary) and `tanyamishra12346789@gmail.com` (overflow) via `/oauth/start`. Then check `GET /accounts` (rows 1 and 13).
-2. Build step 2 + 3: `/sync`, the stand-in phone script, `/uploads` → `batchCreate`.
+1. Build step 2 + 3: `/sync`, the stand-in phone script, `/uploads` → `batchCreate`. This answers A2, the key unknown for the app's upload design.
+2. Then steps 4–5: per-folder albums with the path as description, then verification.
 
 ## Environment snapshot
 - Server: `./bin/server` on `http://localhost:8080` (local, run manually).

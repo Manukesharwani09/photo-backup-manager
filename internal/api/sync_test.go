@@ -27,15 +27,16 @@ import (
 type fakeGoogle struct {
 	mu         sync.Mutex
 	srv        *httptest.Server
-	albums     map[string]string // album id -> "account|title"
-	items      map[string]string // media item id -> "account|album|description"
-	fullFor    map[string]bool   // account refresh token -> report storage full
+	albums     map[string]string   // album id -> "account|title"
+	items      map[string]string   // media item id -> "account|album|description"
+	fullFor    map[string]bool     // account refresh token -> report storage full
+	added      map[string][]string // album id -> media item ids added with batchAddMediaItems
 	nextID     int
 	batchCalls int
 }
 
 func newFakeGoogle(t *testing.T) *fakeGoogle {
-	f := &fakeGoogle{albums: map[string]string{}, items: map[string]string{}, fullFor: map[string]bool{}}
+	f := &fakeGoogle{albums: map[string]string{}, items: map[string]string{}, fullFor: map[string]bool{}, added: map[string][]string{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /token", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
@@ -50,7 +51,7 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 		id := fmt.Sprintf("album%d", f.nextID)
 		f.albums[id] = account(r) + "|" + in.Album.Title
 		f.mu.Unlock()
-		json.NewEncoder(w).Encode(map[string]string{"id": id})
+		json.NewEncoder(w).Encode(map[string]string{"id": id, "productUrl": "https://photos.google.com/album/" + id})
 	})
 	mux.HandleFunc("POST /mediaItems:batchCreate", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
@@ -83,6 +84,25 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 				"mediaItem": map[string]string{"id": id, "productUrl": "https://photos.google.com/lr/" + id}})
 		}
 		json.NewEncoder(w).Encode(map[string]any{"newMediaItemResults": res})
+	})
+	mux.HandleFunc("POST /albums/{id}", func(w http.ResponseWriter, r *http.Request) { // {id} = "<album>:batchAddMediaItems"
+		albumID, action, _ := strings.Cut(r.PathValue("id"), ":")
+		var in struct{ MediaItemIDs []string }
+		json.NewDecoder(r.Body).Decode(&in)
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if action != "batchAddMediaItems" || f.albums[albumID] == "" {
+			http.Error(w, "bad album call", http.StatusBadRequest)
+			return
+		}
+		for _, id := range in.MediaItemIDs {
+			if f.items[id] == "" {
+				http.Error(w, "unknown media item", http.StatusBadRequest)
+				return
+			}
+			f.added[albumID] = append(f.added[albumID], id)
+		}
+		io.WriteString(w, "{}")
 	})
 	mux.HandleFunc("GET /mediaItems:batchGet", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()

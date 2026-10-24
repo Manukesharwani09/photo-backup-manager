@@ -40,6 +40,7 @@ func main() {
 		TokenKey: cfg.TokenKey,
 		UserID:   userID,
 	}
+	go srv.RunCloudChecks(ctx, cfg.CloudCheckInterval)
 	log.Printf("listening on http://%s  (connect an account: http://%s/oauth/start?role=primary)", cfg.ListenAddr, cfg.ListenAddr)
 	log.Fatal(http.ListenAndServe(cfg.ListenAddr, srv.Routes()))
 }

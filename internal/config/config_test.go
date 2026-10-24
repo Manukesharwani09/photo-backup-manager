@@ -11,7 +11,7 @@ import (
 var validKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
 
 func clearEnv(t *testing.T) {
-	for _, k := range []string{"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URL", "TOKEN_ENC_KEY", "DATABASE_URL", "LISTEN_ADDR"} {
+	for _, k := range []string{"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URL", "TOKEN_ENC_KEY", "DATABASE_URL", "LISTEN_ADDR", "CLOUD_CHECK_INTERVAL"} {
 		t.Setenv(k, "") // registers restore on cleanup
 		os.Unsetenv(k)
 	}
@@ -37,6 +37,9 @@ func TestLoadFromDotEnv(t *testing.T) {
 	}
 	if len(cfg.TokenKey) != 32 {
 		t.Fatalf("key length %d", len(cfg.TokenKey))
+	}
+	if cfg.CloudCheckInterval.Hours() != 24 {
+		t.Fatalf("default cloud check interval %v", cfg.CloudCheckInterval)
 	}
 	if cfg.ListenAddr != "localhost:8080" || !strings.Contains(cfg.DatabaseURL, "photobackup") {
 		t.Fatalf("defaults not applied: %+v", cfg)
@@ -85,6 +88,7 @@ func TestErrors(t *testing.T) {
 		"missing key":    "GOOGLE_CLIENT_ID=a\nGOOGLE_CLIENT_SECRET=b\n",
 		"short key":      "GOOGLE_CLIENT_ID=a\nGOOGLE_CLIENT_SECRET=b\nTOKEN_ENC_KEY=" + base64.StdEncoding.EncodeToString(make([]byte, 16)) + "\n",
 		"not base64 key": "GOOGLE_CLIENT_ID=a\nGOOGLE_CLIENT_SECRET=b\nTOKEN_ENC_KEY=%%%\n",
+		"bad interval":   "GOOGLE_CLIENT_ID=a\nGOOGLE_CLIENT_SECRET=b\nTOKEN_ENC_KEY=" + validKey + "\nCLOUD_CHECK_INTERVAL=daily\n",
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {

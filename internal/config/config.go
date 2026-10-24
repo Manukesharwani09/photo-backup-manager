@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -15,7 +16,8 @@ type Config struct {
 	GoogleRedirectURL  string
 	DatabaseURL        string
 	ListenAddr         string
-	TokenKey           []byte // 32 bytes, encrypts refresh tokens at rest
+	TokenKey           []byte        // 32 bytes, encrypts refresh tokens at rest
+	CloudCheckInterval time.Duration // how often to look for photos deleted in Google Photos; 0 = off
 }
 
 // Load reads envFile (if present) without overriding variables already set.
@@ -38,6 +40,14 @@ func Load(envFile string) (Config, error) {
 		return Config{}, fmt.Errorf("TOKEN_ENC_KEY must be 32 bytes, base64-encoded")
 	}
 	cfg.TokenKey = key
+	cfg.CloudCheckInterval = 24 * time.Hour
+	if v := os.Getenv("CLOUD_CHECK_INTERVAL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d < 0 {
+			return Config{}, fmt.Errorf("CLOUD_CHECK_INTERVAL must be a duration like 24h or 0 to disable")
+		}
+		cfg.CloudCheckInterval = d
+	}
 	return cfg, nil
 }
 

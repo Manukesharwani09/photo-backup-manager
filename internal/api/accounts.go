@@ -51,6 +51,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /cleanup/done", s.cleanupDone)
 	mux.HandleFunc("POST /restore/plan", s.restorePlan)
 	mux.HandleFunc("POST /restore/done", s.restoreDone)
+	mux.HandleFunc("GET /similar", s.similar)
+	mux.HandleFunc("POST /cloud/to-delete", s.markToDelete)
+	mux.HandleFunc("POST /cloud/check", s.cloudCheck)
 	return mux
 }
 

@@ -1,4 +1,4 @@
-# 03 — Architecture (draft)
+# Architecture overview
 
 There are **two services**:
 - **Backend:** our server, the brain of the system. It holds accounts, tokens, the registry, rules, and every decision. **Current focus.**
@@ -39,7 +39,8 @@ Only the phone can see and touch the photo files. Everything else, including the
 - Google upload tokens are valid for **1 day**, so the backend must call `batchCreate` before then. Whether a token created by the phone can be used by the backend is in the backend proof of concept below.
 - If the app dies after step 3, the backend has no record yet, so the file stays pending and is simply sent again. If it dies after step 4, the backend completes steps 5–6 on its own.
 
-## Data model (backend DB, first cut)
+## Data model (backend DB)
+**The source of truth is `internal/store/migrations/*.sql`.** The sketch below is the design view. In the SQL, `user` is named `app_user` (because `user` is reserved in Postgres) and `sha256` is stored as `BYTEA`.
 ```
 user(id, email, created_at)
 
@@ -125,19 +126,27 @@ Account B   active 15 Jun 2026 → now
 
 Media downloads have their own quota of 75k per day.
 
-## Backend API (first cut)
-| Endpoint | Purpose |
-|---|---|
-| `POST /accounts/connect` → OAuth callback | Add a Google account; store the encrypted refresh token |
-| `GET /accounts` | Accounts, roles, full flag, coverage |
-| `POST /devices` | Register a phone |
-| `POST /sync` | App sends new or changed file metadata and hashes; returns the upload plan |
-| `POST /uploads` | App reports uploadTokens; backend runs `batchCreate`, album and verify |
-| `GET/PUT /rules` | Folder rules |
-| `POST /cleanup/plan` | Files that may be deleted from chosen folders |
-| `POST /cleanup/done` | App reports deleted files |
-| `GET /dashboard` | Per-account active periods, photo date ranges, counts, folders, remaining space; "where is this photo?" |
-| `GET /photos?taken_from=&taken_to=` | Which accounts hold photos taken in a period |
+## Backend API
+Status: ✅ built · ⬜ planned. The live list is in `internal/api/` (routes are registered in `Server.Routes`).
+
+| Endpoint | Status | Purpose |
+|---|---|---|
+| `GET /oauth/start?role=primary\|overflow` | ✅ | Start Google sign-in for one account (redirects to Google) |
+| `GET /oauth/callback` | ✅ | Google redirects here; the backend stores the encrypted refresh token and opens an `account_period` for the first account |
+| `GET /accounts` | ✅ | Accounts, roles, full flag, active periods, live remaining storage |
+
+Planned (the paths may change while they're built):
+
+| Endpoint | Status | Purpose |
+|---|---|---|
+| `POST /devices` | ⬜ | Register a phone |
+| `POST /sync` | ⬜ | App sends new or changed file metadata and hashes; returns the upload plan |
+| `POST /uploads` | ⬜ | App reports uploadTokens; backend runs `batchCreate`, album and verify |
+| `GET/PUT /rules` | ⬜ | Folder rules |
+| `POST /cleanup/plan` | ⬜ | Files that may be deleted from chosen folders |
+| `POST /cleanup/done` | ⬜ | App reports deleted files |
+| `GET /dashboard` | ⬜ | Per-account active periods, photo date ranges, counts, folders, remaining space; "where is this photo?" |
+| `GET /photos?taken_from=&taken_to=` | ⬜ | Which accounts hold photos taken in a period |
 
 ## Points to note
 - **We hold users' Google tokens.** Encrypt them at rest. That's fine for personal use, and it is a privacy-policy item if published.

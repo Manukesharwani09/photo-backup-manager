@@ -1,4 +1,4 @@
-# 06 — Google Cloud setup (for the backend proof of concept)
+# Google Cloud setup
 
 This is what must be set up in Google Cloud before the Go backend can talk to Google Photos. Everything here is done in the **Google Cloud Console website**. Google has no CLI or API for the consent screen, test users, scopes or OAuth client of an External app.
 
@@ -102,7 +102,7 @@ GOOGLE_REDIRECT_URL=http://localhost:8080/oauth/callback
 - **Go:** installed as a snap (`/snap/bin/go`), but `go version` printed nothing in Claude's shell. Run `go version` in a normal terminal; if it doesn't print a version, reinstall Go (`sudo snap refresh go`, or the official tarball from https://go.dev/dl/).
 
 ## When done
-Steps 4–8 complete → the backend proof of concept in [04-open-questions.md](04-open-questions.md) can start.
+Steps 4–8 complete → the backend proof of concept in [progress/status.md](../progress/status.md) can start.
 
 ## Later (not now)
 - Before real daily use: switch the consent screen to **In production** (still unverified, ≤100 users). Sign-ins then stop expiring after 7 days.

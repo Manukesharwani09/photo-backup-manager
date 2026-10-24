@@ -1,4 +1,4 @@
-# 05 — Discussion: Google Drive instead of Google Photos
+# Discussion: Google Drive instead of Google Photos (not chosen)
 
 _Discussion only, 2026-10-24. **Decision: stay with Google Photos.** This records what we looked at and why._
 

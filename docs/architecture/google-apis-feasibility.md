@@ -1,6 +1,6 @@
-# 02 — Feasibility: what Google, Android and other apps support
+# Feasibility: what Google, Android and other apps support
 
-_Checked 2026-10-22 against official Google docs (sources at the bottom). Updated 2026-10-24 after the scope decisions in doc 01._
+_Checked 2026-10-22 against official Google docs (sources at the bottom). Updated 2026-10-24 after the scope decisions in [requirements](../product/requirements.md)._
 
 ## TL;DR
 **It's feasible, and all 7 problems are covered.**
@@ -13,7 +13,7 @@ Since **31 March 2025**, the Google Photos API lets an app see only the media **
 | Upload a photo or video to account X | ✅ | Scope `photoslibrary.appendonly`: upload the bytes → `mediaItems.batchCreate` (up to 50 per call). Stored at **original quality** (what we want), and it counts against that account's storage. |
 | Several Google accounts | ✅ | One OAuth sign-in per account, with one refresh token stored per account. Nothing in the API limits this. |
 | Read back / verify media the app uploaded | ✅ | Scope `photoslibrary.readonly.appcreateddata`: `mediaItems.get` / `list` returns only app-created items, which is all we need. |
-| Download our own uploads (for restore) | ✅ | The `baseUrl` + `=d` of an app-created item returns the file. ⚠️ Location (GPS) data **may be removed** from the downloaded copy. To be confirmed in the test app; workaround in doc 03. |
+| Download our own uploads (for restore) | ✅ | The `baseUrl` + `=d` of an app-created item returns the file. ⚠️ Location (GPS) data **may be removed** from the downloaded copy. To be confirmed in the test app; workaround in [overview](overview.md). |
 | List the library from before the app | ❌ | `photoslibrary.readonly` was removed on 31 Mar 2025. **Not needed:** we don't back up or track photos from before the app starts. |
 | One album per phone folder | ✅ | The app creates albums and adds its own uploads (`photoslibrary.edit.appcreateddata` for `batchAddMediaItems`). Example names: `DCIM › Camera`, `Documents › Bills`. Each album holds that folder's photos. Sorting albums by title in Google Photos keeps them grouped. Flat albums are fine for us. |
 | Original path on each photo | ✅ | The `description` field (up to 1,000 characters) is set at `batchCreate`. We put the original path there, and it shows in Google Photos' info panel. Whether Google Photos search finds it is to be confirmed in the test app. |

@@ -1,4 +1,4 @@
-# 01 — Problem & Requirements
+# Problem & Requirements
 
 ## The problems (in the user's words, cleaned up)
 1. I back up one phone to **several Google accounts**, because one account doesn't have enough free space.

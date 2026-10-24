@@ -5,13 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/Manukesharwani09/photo-backup-manager/migrations"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/entity"
 )
 
 type Store struct {
@@ -29,28 +28,6 @@ func Open(ctx context.Context, url string) (*Store, error) {
 	return &Store{Pool: pool}, nil
 }
 
-// Migrate applies every embedded migration. Migrations are written to be idempotent.
-func (s *Store) Migrate(ctx context.Context) error {
-	entries, err := migrations.FS.ReadDir(".")
-	if err != nil {
-		return err
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".sql") {
-			continue
-		}
-		sql, err := migrations.FS.ReadFile(e.Name())
-		if err != nil {
-			return err
-		}
-		if _, err := s.Pool.Exec(ctx, string(sql)); err != nil {
-			return fmt.Errorf("migration %s: %w", e.Name(), err)
-		}
-	}
-	return nil
-}
-
 // DefaultUserID returns the single local user, creating it on first run (personal-use phase).
 func (s *Store) DefaultUserID(ctx context.Context) (int64, error) {
 	var id int64
@@ -61,14 +38,8 @@ func (s *Store) DefaultUserID(ctx context.Context) (int64, error) {
 	return id, err
 }
 
-type Account struct {
-	ID              int64
-	Email           string
-	Role            string
-	Active          bool
-	FullFlag        bool
-	RefreshTokenEnc []byte
-}
+// Account is the linked Google account entity.
+type Account = entity.Account
 
 // ErrPrimaryExists is returned when connecting a primary account while a different one is already primary.
 var ErrPrimaryExists = errors.New("another account is already primary")

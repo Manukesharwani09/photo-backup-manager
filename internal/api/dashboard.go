@@ -68,7 +68,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	}{Accounts: []dashboardAccount{}, Phone: counts, Alerts: []alert{}}
 
 	for _, a := range accts {
-		d := dashboardAccount{ID: a.ID, Email: a.Email, Role: a.Role, Active: a.Active, Full: a.FullFlag, Current: current[a.ID],
+		d := dashboardAccount{ID: a.ID, Email: a.Email, Role: string(a.Role), Active: a.Active, Full: a.FullFlag, Current: current[a.ID],
 			ActivePeriods: []map[string]any{}, AccountStats: stats[a.ID]}
 		if d.AccountStats == nil {
 			d.AccountStats = &repository.AccountStats{Folders: []string{}}

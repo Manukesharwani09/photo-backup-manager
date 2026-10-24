@@ -1,6 +1,6 @@
-// Package migrations holds the SQL schema migrations, embedded into the binary.
-// Files are applied in name order on every start and must be idempotent; add a new
-// numbered file for each change and never edit one that has been applied.
+// Package migrations holds the versioned SQL schema migrations, embedded into the binary.
+// Each change is a pair NNN_name.up.sql / NNN_name.down.sql. Applied versions are tracked in
+// schema_migrations; never edit a migration that has been applied, add a new number instead.
 package migrations
 
 import "embed"

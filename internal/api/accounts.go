@@ -169,7 +169,7 @@ func (s *Server) listAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]accountView, 0, len(accts))
 	for _, a := range accts {
-		v := accountView{ID: a.ID, Email: a.Email, Role: a.Role, Active: a.Active, Full: a.FullFlag, ActivePeriods: []map[string]any{}}
+		v := accountView{ID: a.ID, Email: a.Email, Role: string(a.Role), Active: a.Active, Full: a.FullFlag, ActivePeriods: []map[string]any{}}
 		for _, p := range periods {
 			if p.AccountID == a.ID {
 				v.ActivePeriods = append(v.ActivePeriods, map[string]any{"started_at": p.StartedAt, "ended_at": p.EndedAt, "end_reason": p.EndReason})

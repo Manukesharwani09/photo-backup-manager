@@ -132,7 +132,7 @@ func (s *Store) FileOnDevice(ctx context.Context, deviceID, fileID int64) (Uploa
 }
 
 func (s *Store) ListRules(ctx context.Context, userID int64) ([]planner.Rule, error) {
-	rows, err := s.Pool.Query(ctx, `SELECT id, path_glob, target_account_id, backup, cleanup, priority FROM folder_rule WHERE user_id = $1 ORDER BY id`, userID)
+	rows, err := s.Pool.Query(ctx, `SELECT id, path_glob, target_account_id, backup, cleanup, priority FROM folder_rule WHERE user_id = $1 AND deleted_at IS NULL ORDER BY id`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -148,14 +148,15 @@ func (s *Store) ListRules(ctx context.Context, userID int64) ([]planner.Rule, er
 	return out, rows.Err()
 }
 
-// ReplaceRules swaps the user's whole rule set atomically. Target accounts must belong to the user.
+// ReplaceRules swaps the user's whole rule set atomically: old rules are soft-deleted (deleted_at),
+// never removed. Target accounts must belong to the user.
 func (s *Store) ReplaceRules(ctx context.Context, userID int64, rules []planner.Rule) error {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `DELETE FROM folder_rule WHERE user_id = $1`, userID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE folder_rule SET deleted_at = now() WHERE user_id = $1 AND deleted_at IS NULL`, userID); err != nil {
 		return err
 	}
 	for _, r := range rules {

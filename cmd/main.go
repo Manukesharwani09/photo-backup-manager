@@ -2,6 +2,7 @@
 //
 //	go run ./cmd appserver   # migrate, start the cloud-check scheduler, serve HTTP
 //	go run ./cmd migrate     # apply database migrations and exit
+//	go run ./cmd rollback 1  # revert the newest N migrations
 package main
 
 import (
@@ -11,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/Manukesharwani09/photo-backup-manager/internal/api"
 	"github.com/Manukesharwani09/photo-backup-manager/internal/config"
@@ -21,14 +23,15 @@ import (
 const usage = `usage: main [-env FILE] <command>
 
 commands:
-  appserver   apply migrations, then serve the HTTP API
-  migrate     apply migrations and exit`
+  appserver     apply migrations, then serve the HTTP API
+  migrate       apply migrations and exit
+  rollback N    revert the newest N applied migrations`
 
 func main() {
 	envFile := flag.String("env", ".env", "path to the .env file")
 	flag.Usage = func() { fmt.Fprintln(os.Stderr, usage) }
 	flag.Parse()
-	if flag.NArg() != 1 {
+	if flag.NArg() < 1 {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -42,10 +45,27 @@ func main() {
 	if err != nil {
 		log.Fatalf("db: %v", err)
 	}
+
+	switch flag.Arg(0) {
+	case "rollback":
+		steps, err := strconv.Atoi(flag.Arg(1))
+		if err != nil || steps < 1 {
+			log.Fatal("usage: rollback N (N >= 1)")
+		}
+		if err := st.Rollback(ctx, steps); err != nil {
+			log.Fatalf("rollback: %v", err)
+		}
+		log.Printf("rolled back %d migration(s)", steps)
+		return
+	case "migrate", "appserver":
+	default:
+		flag.Usage()
+		os.Exit(2)
+	}
+
 	if err := st.Migrate(ctx); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
-
 	switch flag.Arg(0) {
 	case "migrate":
 		log.Print("migrations applied")

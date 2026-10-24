@@ -5,7 +5,7 @@
 GO ?= $(shell command -v /snap/go/current/bin/go || command -v go)
 TEST_DATABASE_URL ?= postgres:///photobackup_test?host=/var/run/postgresql
 
-.PHONY: help run migrate build test check fmt testdb phonesim testdata
+.PHONY: help run migrate rollback build test check fmt testdb phonesim testdata
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -15,6 +15,9 @@ run: ## Run the HTTP API (applies migrations first)
 
 migrate: ## Apply database migrations and exit
 	$(GO) run ./cmd migrate
+
+rollback: ## Revert the newest N migrations: make rollback n=1
+	$(GO) run ./cmd rollback $(n)
 
 build: ## Build bin/server and bin/phonesim
 	$(GO) build -o bin/server ./cmd

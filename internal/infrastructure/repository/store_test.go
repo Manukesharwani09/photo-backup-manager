@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"testing"
+
+	"github.com/Manukesharwani09/photo-backup-manager/internal/planner"
 )
 
 // Integration tests. They need a disposable database:
@@ -196,5 +198,29 @@ func TestOnePrimaryEnforcedByDatabase(t *testing.T) {
 	_, err := s.Pool.Exec(ctx, `INSERT INTO account (user_id, email, role, refresh_token_enc) VALUES ($1, 'b@gmail.com', 'primary', 'x')`, me)
 	if err == nil {
 		t.Fatal("database accepted a second primary")
+	}
+}
+
+// Replacing the rule set soft-deletes the old rules: they stay in the table but are no longer active.
+func TestReplaceRules_SoftDeletesOldRules(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	uid, _ := s.DefaultUserID(ctx)
+	first := []planner.Rule{{PathGlob: "Documents", Backup: "include", Cleanup: "protected"}}
+	if err := s.ReplaceRules(ctx, uid, first); err != nil {
+		t.Fatal(err)
+	}
+	second := []planner.Rule{{PathGlob: "Private", Backup: "exclude", Cleanup: "allowed"}}
+	if err := s.ReplaceRules(ctx, uid, second); err != nil {
+		t.Fatal(err)
+	}
+	active, _ := s.ListRules(ctx, uid)
+	if len(active) != 1 || active[0].PathGlob != "Private" {
+		t.Fatalf("active rules: %+v", active)
+	}
+	var total, deleted int
+	s.Pool.QueryRow(ctx, `SELECT count(*), count(deleted_at) FROM folder_rule WHERE user_id = $1`, uid).Scan(&total, &deleted)
+	if total != 2 || deleted != 1 {
+		t.Fatalf("rows=%d soft-deleted=%d, want 2 and 1", total, deleted)
 	}
 }

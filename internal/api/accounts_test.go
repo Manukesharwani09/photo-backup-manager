@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/google"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
 )
 
 // These tests cover the paths that never reach Google or the DB.

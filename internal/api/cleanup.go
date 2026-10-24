@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/plan"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/store"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/planner"
 )
 
 type cleanupFile struct {
@@ -56,8 +56,8 @@ func (s *Server) cleanupPlan(w http.ResponseWriter, r *http.Request) {
 		if !inFolders(in.Folders, f.RelativePath) {
 			continue
 		}
-		if why := plan.CleanupBlocker(plan.RuleFor(rules, f.RelativePath), f.OnDevice, f.BackupStatus); why != "" {
-			if why != plan.KeepNotOnDevice {
+		if why := planner.CleanupBlocker(planner.RuleFor(rules, f.RelativePath), f.OnDevice, f.BackupStatus); why != "" {
+			if why != planner.KeepNotOnDevice {
 				out.Kept[why]++
 			}
 			continue
@@ -91,7 +91,7 @@ func (s *Server) cleanupDone(w http.ResponseWriter, r *http.Request) {
 
 func inFolders(folders []string, path string) bool {
 	for _, f := range folders {
-		if plan.Matches(f, path) {
+		if planner.Matches(f, path) {
 			return true
 		}
 	}
@@ -100,7 +100,7 @@ func inFolders(folders []string, path string) bool {
 
 func (s *Server) deviceExists(w http.ResponseWriter, r *http.Request, deviceID int64) bool {
 	_, err := s.Store.DeviceFirstScan(r.Context(), s.UserID, deviceID)
-	if errors.Is(err, store.ErrNotFound) {
+	if errors.Is(err, repository.ErrNotFound) {
 		http.Error(w, "unknown device_id", http.StatusNotFound)
 		return false
 	}

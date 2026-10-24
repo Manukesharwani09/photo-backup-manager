@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/plan"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/store"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/planner"
 )
 
 type dashboardAccount struct {
@@ -19,7 +19,7 @@ type dashboardAccount struct {
 	StorageError  string           `json:"storage_error,omitempty"`
 	ActivePeriods []map[string]any `json:"active_periods"`
 	ToDeleteAlbum string           `json:"to_delete_album_url,omitempty"`
-	*store.AccountStats
+	*repository.AccountStats
 }
 
 type alert struct {
@@ -36,7 +36,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "accounts", err)
 		return
 	}
-	planner, err := s.Store.PlannerAccounts(ctx, s.UserID)
+	candidates, err := s.Store.PlannerAccounts(ctx, s.UserID)
 	if err != nil {
 		httpError(w, "planner accounts", err)
 		return
@@ -57,7 +57,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	current := map[int64]bool{}
-	for _, p := range planner {
+	for _, p := range candidates {
 		current[p.ID] = p.IsCurrent
 	}
 
@@ -71,7 +71,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		d := dashboardAccount{ID: a.ID, Email: a.Email, Role: a.Role, Active: a.Active, Full: a.FullFlag, Current: current[a.ID],
 			ActivePeriods: []map[string]any{}, AccountStats: stats[a.ID]}
 		if d.AccountStats == nil {
-			d.AccountStats = &store.AccountStats{Folders: []string{}}
+			d.AccountStats = &repository.AccountStats{Folders: []string{}}
 		}
 		for _, p := range periods {
 			if p.AccountID == a.ID {
@@ -88,12 +88,12 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 			out.Alerts = append(out.Alerts, alert{"account_full", a.Email + " is full; new photos go to the next account"})
 		}
 		if d.PendingDelete > 0 {
-			d.ToDeleteAlbum, _ = s.Store.AlbumLink(ctx, a.ID, store.ToDeleteFolder)
+			d.ToDeleteAlbum, _ = s.Store.AlbumLink(ctx, a.ID, repository.ToDeleteFolder)
 			out.Alerts = append(out.Alerts, alert{"to_delete_waiting", a.Email + ": photos are waiting in the 🗑 To delete album"})
 		}
 		out.Accounts = append(out.Accounts, d)
 	}
-	if _, _, why := plan.ChooseAccount(planner, nil); why != "" {
+	if _, _, why := planner.ChooseAccount(candidates, nil); why != "" {
 		out.Alerts = append(out.Alerts, alert{"no_account_available", "No account can take new photos: connect another account or free up space"})
 	}
 	writeJSON(w, http.StatusOK, out)

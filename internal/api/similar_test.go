@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/store"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
 )
 
 func withPHash(f syncFile, h string) syncFile { f.PHash = &h; return f }
@@ -12,7 +12,7 @@ func withPHash(f syncFile, h string) syncFile { f.PHash = &h; return f }
 type similarResp struct {
 	Groups []struct {
 		Reason string
-		Photos []store.MediaDetail
+		Photos []repository.MediaDetail
 	}
 }
 

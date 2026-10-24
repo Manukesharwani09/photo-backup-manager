@@ -31,7 +31,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/google"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
 )
 
 var mediaExt = map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".heic": true, ".heif": true,

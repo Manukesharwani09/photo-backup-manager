@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/google"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/plan"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/store"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/planner"
 )
 
 type restoreItem struct {
@@ -36,7 +36,7 @@ func (s *Server) restorePlan(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
-	if plan.NormalizeFolder(in.Folder) == "" {
+	if planner.NormalizeFolder(in.Folder) == "" {
 		http.Error(w, "folder must not be empty", http.StatusBadRequest)
 		return
 	}
@@ -61,10 +61,10 @@ func (s *Server) restorePlan(w http.ResponseWriter, r *http.Request) {
 		Tokens          map[int64]accessToken `json:"tokens"`
 	}{Items: []restoreItem{}, MissingInGoogle: []string{}, Tokens: map[int64]accessToken{}}
 
-	byAccount := map[int64][]store.RestoreCandidate{}
+	byAccount := map[int64][]repository.RestoreCandidate{}
 	var accountOrder []int64
 	for _, c := range cands {
-		if !plan.Matches(in.Folder, c.RelativePath) {
+		if !planner.Matches(in.Folder, c.RelativePath) {
 			continue
 		}
 		if present[c.RelativePath+"/"+c.DisplayName] {
@@ -146,7 +146,7 @@ func (s *Server) restoreDone(w http.ResponseWriter, r *http.Request) {
 			rejected = append(rejected, it.RelativePath+"/"+it.DisplayName+": bad sha256 or name")
 			continue
 		}
-		f := store.FileMeta{RelativePath: plan.NormalizeFolder(it.RelativePath), DisplayName: it.DisplayName, Size: it.Size, SHA256: sum, Source: "other"}
+		f := repository.FileMeta{RelativePath: planner.NormalizeFolder(it.RelativePath), DisplayName: it.DisplayName, Size: it.Size, SHA256: sum, Source: "other"}
 		ok, err := s.Store.RecordRestored(ctx, s.UserID, in.DeviceID, it.MediaID, f)
 		if err != nil {
 			httpError(w, "record restored", err)

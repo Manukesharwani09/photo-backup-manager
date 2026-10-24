@@ -1,9 +1,8 @@
 // Package store holds the Postgres access layer.
-package store
+package repository
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 	"sort"
@@ -11,10 +10,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-)
 
-//go:embed migrations/*.sql
-var migrations embed.FS
+	"github.com/Manukesharwani09/photo-backup-manager/migrations"
+)
 
 type Store struct {
 	Pool *pgxpool.Pool
@@ -33,13 +31,16 @@ func Open(ctx context.Context, url string) (*Store, error) {
 
 // Migrate applies every embedded migration. Migrations are written to be idempotent.
 func (s *Store) Migrate(ctx context.Context) error {
-	entries, err := migrations.ReadDir("migrations")
+	entries, err := migrations.FS.ReadDir(".")
 	if err != nil {
 		return err
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 	for _, e := range entries {
-		sql, err := migrations.ReadFile("migrations/" + e.Name())
+		if !strings.HasSuffix(e.Name(), ".sql") {
+			continue
+		}
+		sql, err := migrations.FS.ReadFile(e.Name())
 		if err != nil {
 			return err
 		}

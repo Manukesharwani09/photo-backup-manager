@@ -3,9 +3,9 @@ package api
 import (
 	"net/http"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/google"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/plan"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/store"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/planner"
 )
 
 // ToDeleteAlbumTitle is the album, one per account, collecting cloud copies the user wants gone.
@@ -21,7 +21,7 @@ func (s *Server) similar(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "load photos", err)
 		return
 	}
-	groups := plan.SimilarGroups(inputs)
+	groups := planner.SimilarGroups(inputs)
 	var ids []int64
 	for _, g := range groups {
 		ids = append(ids, g.MediaIDs...)
@@ -32,8 +32,8 @@ func (s *Server) similar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type groupJSON struct {
-		Reason string               `json:"reason"`
-		Photos []*store.MediaDetail `json:"photos"`
+		Reason string                    `json:"reason"`
+		Photos []*repository.MediaDetail `json:"photos"`
 	}
 	out := []groupJSON{}
 	for _, g := range groups {
@@ -67,7 +67,7 @@ func (s *Server) markToDelete(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "load backups", err)
 		return
 	}
-	byAccount := map[int64][]store.ToDeleteItem{}
+	byAccount := map[int64][]repository.ToDeleteItem{}
 	var order []int64
 	for _, it := range items {
 		if byAccount[it.AccountID] == nil {
@@ -100,7 +100,7 @@ func (s *Server) markToDelete(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "account client", err)
 			return
 		}
-		_, albumID, err := s.ensureNamedAlbum(ctx, client, acctID, store.ToDeleteFolder, ToDeleteAlbumTitle)
+		_, albumID, err := s.ensureNamedAlbum(ctx, client, acctID, repository.ToDeleteFolder, ToDeleteAlbumTitle)
 		if err != nil {
 			httpError(w, "to-delete album", err)
 			return
@@ -123,7 +123,7 @@ func (s *Server) markToDelete(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "mark for delete", err)
 			return
 		}
-		link, _ := s.Store.AlbumLink(ctx, acctID, store.ToDeleteFolder)
+		link, _ := s.Store.AlbumLink(ctx, acctID, repository.ToDeleteFolder)
 		out.Accounts = append(out.Accounts, card{AccountID: acctID, AccountEmail: acct.Email, AlbumURL: link, Added: len(list)})
 	}
 	pending, err := s.Store.PendingDeletes(ctx, s.UserID)
@@ -137,7 +137,7 @@ func (s *Server) markToDelete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-func countMedia(items []store.ToDeleteItem) int {
+func countMedia(items []repository.ToDeleteItem) int {
 	seen := map[int64]bool{}
 	for _, it := range items {
 		seen[it.MediaID] = true

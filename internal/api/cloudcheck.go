@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/google"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
 )
 
 // CloudCheckResult summarises one pass over all live backups.

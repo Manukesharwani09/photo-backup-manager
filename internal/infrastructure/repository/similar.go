@@ -1,15 +1,15 @@
-package store
+package repository
 
 import (
 	"context"
 	"time"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/plan"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/planner"
 )
 
 // SimilarInputs returns every media of the user that is backed up or still on a phone,
-// with what plan.SimilarGroups compares. The name is that of one of its phone files.
-func (s *Store) SimilarInputs(ctx context.Context, userID int64) ([]plan.Photo, error) {
+// with what planner.SimilarGroups compares. The name is that of one of its phone files.
+func (s *Store) SimilarInputs(ctx context.Context, userID int64) ([]planner.Photo, error) {
 	rows, err := s.Pool.Query(ctx, `
 		SELECT m.id, m.phash, m.date_taken, m.width, m.height,
 		       (SELECT f.display_name FROM device_file f WHERE f.media_id = m.id ORDER BY f.id LIMIT 1)
@@ -22,9 +22,9 @@ func (s *Store) SimilarInputs(ctx context.Context, userID int64) ([]plan.Photo, 
 		return nil, err
 	}
 	defer rows.Close()
-	var out []plan.Photo
+	var out []planner.Photo
 	for rows.Next() {
-		var p plan.Photo
+		var p planner.Photo
 		var ph *int64
 		var name *string
 		if err := rows.Scan(&p.MediaID, &ph, &p.DateTaken, &p.Width, &p.Height, &name); err != nil {

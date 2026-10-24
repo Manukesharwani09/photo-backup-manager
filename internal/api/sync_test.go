@@ -17,9 +17,9 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/crypto"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/google"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/store"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/crypto"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
 )
 
 // fakeGoogle imitates the OAuth token endpoint and the Photos Library API.
@@ -135,7 +135,7 @@ func account(r *http.Request) string {
 type env struct {
 	t       *testing.T
 	h       http.Handler
-	st      *store.Store
+	st      *repository.Store
 	g       *fakeGoogle
 	primary int64
 	over    int64
@@ -149,7 +149,7 @@ func setup(t *testing.T) *env {
 		t.Skip("TEST_DATABASE_URL not set")
 	}
 	ctx := context.Background()
-	st, err := store.Open(ctx, url)
+	st, err := repository.Open(ctx, url)
 	if err != nil {
 		t.Fatal(err)
 	}

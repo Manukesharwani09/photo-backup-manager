@@ -13,10 +13,10 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/crypto"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/google"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/plan"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/store"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/crypto"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/planner"
 )
 
 // Device file states (device_file.state).
@@ -103,7 +103,7 @@ func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	firstScanAt, err := s.Store.DeviceFirstScan(ctx, s.UserID, in.DeviceID)
-	if errors.Is(err, store.ErrNotFound) {
+	if errors.Is(err, repository.ErrNotFound) {
 		http.Error(w, "unknown device_id; register with POST /devices", http.StatusNotFound)
 		return
 	}
@@ -150,7 +150,7 @@ func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		rule := plan.RuleFor(rules, meta.RelativePath)
+		rule := planner.RuleFor(rules, meta.RelativePath)
 		var state string
 		switch {
 		case backed:
@@ -175,7 +175,7 @@ func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		acctID, switched, reason := plan.ChooseAccount(accts, rule)
+		acctID, switched, reason := planner.ChooseAccount(accts, rule)
 		if reason != "" {
 			out.Waiting = append(out.Waiting, waitingItem{FileID: fileID, Reason: reason})
 			continue
@@ -192,7 +192,7 @@ func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
 		}
 		plannedMedia[mediaID] = true
 		out.Plan = append(out.Plan, planItem{FileID: fileID, SHA256: f.SHA256, RelativePath: meta.RelativePath,
-			DisplayName: meta.DisplayName, AccountID: acctID, AlbumTitle: plan.AlbumTitle(meta.RelativePath)})
+			DisplayName: meta.DisplayName, AccountID: acctID, AlbumTitle: planner.AlbumTitle(meta.RelativePath)})
 	}
 	out.Counts["planned"] = len(out.Plan)
 
@@ -216,8 +216,8 @@ func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-func toMeta(f syncFile) (store.FileMeta, string) {
-	m := store.FileMeta{RelativePath: plan.NormalizeFolder(f.RelativePath), DisplayName: f.DisplayName, Size: f.Size,
+func toMeta(f syncFile) (repository.FileMeta, string) {
+	m := repository.FileMeta{RelativePath: planner.NormalizeFolder(f.RelativePath), DisplayName: f.DisplayName, Size: f.Size,
 		Width: f.Width, Height: f.Height, GPSLat: f.GPSLat, GPSLng: f.GPSLng, Source: f.Source}
 	if m.DisplayName == "" {
 		return m, "file with empty display_name"
@@ -303,7 +303,7 @@ func (s *Server) uploads(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
-	if _, err := s.Store.DeviceFirstScan(ctx, s.UserID, in.DeviceID); errors.Is(err, store.ErrNotFound) {
+	if _, err := s.Store.DeviceFirstScan(ctx, s.UserID, in.DeviceID); errors.Is(err, repository.ErrNotFound) {
 		http.Error(w, "unknown device_id", http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -314,7 +314,7 @@ func (s *Server) uploads(w http.ResponseWriter, r *http.Request) {
 	results := map[int64]*uploadResult{}
 	order := []int64{}
 	type job struct {
-		file store.UploadFile
+		file repository.UploadFile
 		item uploadItem
 	}
 	byAccount := map[int64]map[string][]job{} // account -> folder -> jobs
@@ -328,7 +328,7 @@ func (s *Server) uploads(w http.ResponseWriter, r *http.Request) {
 		order = append(order, it.FileID)
 		f, err := s.Store.FileOnDevice(ctx, in.DeviceID, it.FileID)
 		switch {
-		case errors.Is(err, store.ErrNotFound):
+		case errors.Is(err, repository.ErrNotFound):
 			res.Status, res.Message = "invalid", "file not on this device"
 			continue
 		case err != nil:
@@ -422,7 +422,7 @@ func (s *Server) uploads(w http.ResponseWriter, r *http.Request) {
 						continue
 					}
 					rid, err := s.Store.RecordBackup(ctx, j.file.MediaID, acctID, c.MediaItemID, c.ProductURL, &albumRow)
-					if errors.Is(err, store.ErrAlreadyBacked) {
+					if errors.Is(err, repository.ErrAlreadyBacked) {
 						res.Status, res.Message = "already_backed_up", "created a duplicate in Google Photos (race); remove "+c.ProductURL
 						continue
 					}
@@ -459,7 +459,7 @@ func (s *Server) uploads(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ensureAlbum(ctx context.Context, client *http.Client, accountID int64, folder string) (int64, string, error) {
-	return s.ensureNamedAlbum(ctx, client, accountID, folder, plan.AlbumTitle(folder))
+	return s.ensureNamedAlbum(ctx, client, accountID, folder, planner.AlbumTitle(folder))
 }
 
 // ensureNamedAlbum returns the album for key in an account, creating it in Google on first use.
@@ -468,7 +468,7 @@ func (s *Server) ensureNamedAlbum(ctx context.Context, client *http.Client, acco
 	if err == nil {
 		return row, gid, nil
 	}
-	if !errors.Is(err, store.ErrNotFound) {
+	if !errors.Is(err, repository.ErrNotFound) {
 		return 0, "", err
 	}
 	gid, link, err := google.CreateAlbum(ctx, client, title)
@@ -539,7 +539,7 @@ func (s *Server) putRules(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
-	rules := make([]plan.Rule, 0, len(in))
+	rules := make([]planner.Rule, 0, len(in))
 	for i, x := range in {
 		if x.Backup == "" {
 			x.Backup = "include"
@@ -547,13 +547,13 @@ func (s *Server) putRules(w http.ResponseWriter, r *http.Request) {
 		if x.Cleanup == "" {
 			x.Cleanup = "allowed"
 		}
-		if plan.NormalizeFolder(x.PathGlob) == "" || (x.Backup != "include" && x.Backup != "exclude") || (x.Cleanup != "allowed" && x.Cleanup != "protected") {
+		if planner.NormalizeFolder(x.PathGlob) == "" || (x.Backup != "include" && x.Backup != "exclude") || (x.Cleanup != "allowed" && x.Cleanup != "protected") {
 			http.Error(w, fmt.Sprintf("rule %d: need path, backup include|exclude, cleanup allowed|protected", i), http.StatusBadRequest)
 			return
 		}
-		rules = append(rules, plan.Rule{PathGlob: x.PathGlob, TargetAccountID: x.TargetAccountID, Backup: x.Backup, Cleanup: x.Cleanup, Priority: x.Priority})
+		rules = append(rules, planner.Rule{PathGlob: x.PathGlob, TargetAccountID: x.TargetAccountID, Backup: x.Backup, Cleanup: x.Cleanup, Priority: x.Priority})
 	}
-	if err := s.Store.ReplaceRules(r.Context(), s.UserID, rules); errors.Is(err, store.ErrNotFound) {
+	if err := s.Store.ReplaceRules(r.Context(), s.UserID, rules); errors.Is(err, repository.ErrNotFound) {
 		http.Error(w, "target_account_id is not one of your accounts", http.StatusBadRequest)
 		return
 	} else if err != nil {
@@ -572,7 +572,7 @@ func (s *Server) markFull(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad account id", http.StatusBadRequest)
 		return
 	}
-	if err := s.Store.MarkFull(r.Context(), s.UserID, id); errors.Is(err, store.ErrNotFound) {
+	if err := s.Store.MarkFull(r.Context(), s.UserID, id); errors.Is(err, repository.ErrNotFound) {
 		http.Error(w, "unknown account", http.StatusNotFound)
 		return
 	} else if err != nil {

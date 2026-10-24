@@ -1,6 +1,6 @@
 // Package plan holds the pure backup decisions: which folder rule applies, which account a file goes to,
 // and what the folder's album is called. No I/O, so every edge case is unit-testable.
-package plan
+package planner
 
 import (
 	"path"

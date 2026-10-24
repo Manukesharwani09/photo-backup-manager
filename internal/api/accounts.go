@@ -15,13 +15,13 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/crypto"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/google"
-	"github.com/Manukesharwani09/photo-backup-manager/internal/store"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/crypto"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
 )
 
 type Server struct {
-	Store    *store.Store
+	Store    *repository.Store
 	OAuth    *oauth2.Config
 	TokenKey []byte
 	UserID   int64
@@ -124,11 +124,11 @@ func (s *Server) oauthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, err := s.Store.UpsertAccount(ctx, s.UserID, email, sub, pending.role, enc)
-	if errors.Is(err, store.ErrPrimaryExists) {
+	if errors.Is(err, repository.ErrPrimaryExists) {
 		http.Error(w, "Another account is already primary. Connect "+email+" with role=overflow instead.", http.StatusConflict)
 		return
 	}
-	if errors.Is(err, store.ErrLinkedElsewhere) {
+	if errors.Is(err, repository.ErrLinkedElsewhere) {
 		http.Error(w, email+" is already linked to another owner and can't be linked again.", http.StatusConflict)
 		return
 	}
@@ -190,7 +190,7 @@ func (s *Server) listAccounts(w http.ResponseWriter, r *http.Request) {
 }
 
 // Client returns an authorised HTTP client for a stored account.
-func (s *Server) Client(ctx context.Context, a store.Account) (*http.Client, error) {
+func (s *Server) Client(ctx context.Context, a repository.Account) (*http.Client, error) {
 	rt, err := crypto.Open(s.TokenKey, a.RefreshTokenEnc)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (s *Server) Client(ctx context.Context, a store.Account) (*http.Client, err
 	return s.OAuth.Client(ctx, &oauth2.Token{RefreshToken: string(rt)}), nil
 }
 
-func (s *Server) quota(ctx context.Context, a store.Account) (google.StorageQuota, error) {
+func (s *Server) quota(ctx context.Context, a repository.Account) (google.StorageQuota, error) {
 	c, err := s.Client(ctx, a)
 	if err != nil {
 		return google.StorageQuota{}, err

@@ -1,4 +1,4 @@
-package store
+package repository
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/plan"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/planner"
 )
 
 var (
@@ -131,15 +131,15 @@ func (s *Store) FileOnDevice(ctx context.Context, deviceID, fileID int64) (Uploa
 	return f, err
 }
 
-func (s *Store) ListRules(ctx context.Context, userID int64) ([]plan.Rule, error) {
+func (s *Store) ListRules(ctx context.Context, userID int64) ([]planner.Rule, error) {
 	rows, err := s.Pool.Query(ctx, `SELECT id, path_glob, target_account_id, backup, cleanup, priority FROM folder_rule WHERE user_id = $1 ORDER BY id`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []plan.Rule
+	var out []planner.Rule
 	for rows.Next() {
-		var r plan.Rule
+		var r planner.Rule
 		if err := rows.Scan(&r.ID, &r.PathGlob, &r.TargetAccountID, &r.Backup, &r.Cleanup, &r.Priority); err != nil {
 			return nil, err
 		}
@@ -149,7 +149,7 @@ func (s *Store) ListRules(ctx context.Context, userID int64) ([]plan.Rule, error
 }
 
 // ReplaceRules swaps the user's whole rule set atomically. Target accounts must belong to the user.
-func (s *Store) ReplaceRules(ctx context.Context, userID int64, rules []plan.Rule) error {
+func (s *Store) ReplaceRules(ctx context.Context, userID int64, rules []planner.Rule) error {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -169,7 +169,7 @@ func (s *Store) ReplaceRules(ctx context.Context, userID int64, rules []plan.Rul
 			}
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO folder_rule (user_id, path_glob, target_account_id, backup, cleanup, priority) VALUES ($1,$2,$3,$4,$5,$6)`,
-			userID, plan.NormalizeFolder(r.PathGlob), r.TargetAccountID, r.Backup, r.Cleanup, r.Priority)
+			userID, planner.NormalizeFolder(r.PathGlob), r.TargetAccountID, r.Backup, r.Cleanup, r.Priority)
 		if err != nil {
 			return err
 		}
@@ -178,7 +178,7 @@ func (s *Store) ReplaceRules(ctx context.Context, userID int64, rules []plan.Rul
 }
 
 // PlannerAccounts returns the user's accounts with which one is current (has the open period).
-func (s *Store) PlannerAccounts(ctx context.Context, userID int64) ([]plan.Account, error) {
+func (s *Store) PlannerAccounts(ctx context.Context, userID int64) ([]planner.Account, error) {
 	rows, err := s.Pool.Query(ctx, `
 		SELECT a.id, a.role, a.active, a.full_flag,
 		       EXISTS (SELECT 1 FROM account_period p WHERE p.account_id = a.id AND p.ended_at IS NULL)
@@ -187,9 +187,9 @@ func (s *Store) PlannerAccounts(ctx context.Context, userID int64) ([]plan.Accou
 		return nil, err
 	}
 	defer rows.Close()
-	var out []plan.Account
+	var out []planner.Account
 	for rows.Next() {
-		var a plan.Account
+		var a planner.Account
 		if err := rows.Scan(&a.ID, &a.Role, &a.Active, &a.Full, &a.IsCurrent); err != nil {
 			return nil, err
 		}

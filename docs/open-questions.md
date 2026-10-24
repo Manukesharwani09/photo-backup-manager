@@ -8,12 +8,13 @@ _None right now._
 ## Assumptions to verify in the proof of concept
 | # | Assumption | How it's checked | Status |
 |---|---|---|---|
-| A3 | `baseUrl=d` downloads strip GPS | Upload a photo with GPS, download it, compare EXIF | ⬜ |
 | A4 | Google Photos search finds text in the item `description` | Search the original path in Google Photos | ⬜ |
 | A5 | Motion photos and HEIC keep their motion and format after an API upload | Upload a sample and view it in Google Photos | ⬜ |
 | A6 | The exact error Google returns when an account is full | Observe it (hard to force; may need a nearly full test account). Meanwhile `google.IsStorageFull` matches code 8 or storage/quota wording | ⬜ |
 
 ## Verified (moved out)
+- **A3, verified 2026-10-24:** `baseUrl=d` downloads **strip GPS** and change the bytes (different SHA-256, ~1% smaller; dimensions and DateTime kept). So restore needs GPS write-back on the phone and hash linking on the backend, which are both implemented.
+- **A8, verified 2026-10-24:** `albums/{id}:batchAddMediaItems` works with `photoslibrary.edit.appcreateddata` ("To delete" album). The API has no way to delete albums.
 - **A2, verified 2026-10-24:** an upload token created by the phone (with a backend-issued access token) is accepted by the backend's `mediaItems:batchCreate`. The split upload design works.
 - **A1, verified 2026-10-24:** the `drive.file` scope is enough for `about.get` → `storageQuota`.
 - **A7, verified 2026-10-24:** requesting `openid` + `userinfo.email` (not declared on the consent screen) works in Testing mode.

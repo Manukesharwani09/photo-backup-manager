@@ -2,6 +2,25 @@
 
 One entry per task (not per commit), newest first. Each entry says what was done, which commits it covers, and anything a future agent must know.
 
+## 2026-10-24: Cleanup, restore, similar, To delete, cloud check, dashboard (proof-of-concept steps 9–12, 15)
+- Commits: `97c7b3e` (cleanup), `70dbe5f` (restore), `931ac01` (similar + To delete), `7c36380` (cloud check + scheduler), `48d57c0` (dashboard + photos/where), `a646ebf` (count fix).
+- Live against real Google:
+  - The cleanup preview was correct.
+  - Restore to a second simulated phone worked. **A3: Google strips GPS and changes bytes on download.**
+  - The "🗑 To delete" album was created and an item added.
+  - The cloud check ran 5/5.
+  - The dashboard and photos/where returned correct results.
+- Bugs found by tests and live runs, then fixed:
+  1. A deliberately deleted duplicate (via To delete) went back to pending on the next sync. Sync now checks `DeletedOnPurpose`.
+  2. The dashboard double-counted restored copies (they link to the same Google item). It now counts distinct Google items.
+- Corrections to earlier design statements:
+  - Albums can't be deleted via the API, so the empty To delete album stays and is reused.
+  - `RecordRestored` originally swallowed every DB error; now only "no rows" means "not backed up".
+- Gotchas:
+  - Postgres TEXT can't hold NUL bytes. The To delete album key is `:to-delete:`.
+  - Test fakes need `Content-Type: application/json`.
+  - `DriveAPI` and `PhotosAPI` are variables so tests can redirect them.
+
 ## 2026-10-24: Sync + upload (proof-of-concept steps 2–8)
 - Commits: `9418138` (planner), `4c671e5` (Photos client), `09b7491` (sync/upload API + end-to-end tests), `954e698` (phonesim + test photo generator).
 - What was built:

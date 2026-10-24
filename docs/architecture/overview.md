@@ -40,7 +40,12 @@ Only the phone can see and touch the photo files. Everything else, including the
 - If the app dies after step 3, the backend has no record yet, so the file stays pending and is simply sent again. If it dies after step 4, the backend completes steps 5–6 on its own.
 
 ## Data model (backend DB)
-**The source of truth is `internal/store/migrations/*.sql`.** The sketch below is the design view. In the SQL, `user` is named `app_user` (because `user` is reserved in Postgres) and `sha256` is stored as `BYTEA`.
+**The source of truth is `internal/store/migrations/*.sql`.** The sketch below is the design view. In the SQL:
+- `user` is named `app_user` (`user` is reserved in Postgres), and `sha256` is stored as `BYTEA`.
+- Migration 002 adds a unique index allowing **only one live backup per media**.
+- Migration 003 adds `album.product_url` and `backup_record.marked_for_delete_at`.
+- `phash` is the signed 64-bit pattern of the phone's perceptual hash.
+- The "To delete" album is stored in `album` with `folder_path = ':to-delete:'`.
 ```
 user(id, email, created_at)
 
@@ -109,20 +114,30 @@ Account B   active 15 Jun 2026 → now
             photos taken: Jan 2022 → Oct 2026 · 2,105 items
 ```
 
-**Cloud check (scheduled):** the Google Photos API has no delete, but you can delete photos yourself in the Google Photos app. So the backend regularly runs `mediaItems.batchGet` (50 per call) on its records:
-- If an item comes back "not found", its record is set to `deleted_in_cloud`, and that photo no longer counts as backed up.
-- If the photo is still on the phone, it becomes `pending` again.
-- If it isn't on the phone anymore, it's flagged on the dashboard.
+**Cloud check (scheduled, `POST /cloud/check`):** the Google Photos API has no delete, but the user can delete photos themselves in Google Photos. So the backend runs `mediaItems:batchGet` (50 per call) over every live backup, by default every 24h (`CLOUD_CHECK_INTERVAL`, `0` = off):
+- **Item still there:** it's marked `verified` and `last_checked_at` is updated.
+- **Item "not found":** the record becomes `deleted_in_cloud`, and the photo no longer counts as backed up. What happens to the phone copy depends on how it was deleted:
+  - **Deleted on purpose** (it was sent to "🗑 To delete"): phone copies become `excluded` and are never uploaded again. Sync also checks this, so a deliberate deletion is never undone.
+  - **Deleted by the user directly in Google Photos:** phone copies still present go back to `pending`, and the next sync re-uploads them.
+- **A Google API error** is reported and that chunk is skipped. It is **never** treated as a deletion.
+- **Quota cost:** about 1 request per 50 backed-up photos per run.
+
+**Similar photos + "🗑 To delete" album (`GET /similar`, `POST /cloud/to-delete`):**
+- The phone may send a 64-bit perceptual hash (`phash`) per file.
+- The backend groups photos whose hashes differ by ≤ 6 bits, or which share name, date taken and dimensions (`plan.SimilarGroups`). Grouping is transitive. Comparison is O(n²) for now; it needs bucketing before libraries reach tens of thousands of photos.
+- Each group lists every copy with its paths, phone file ids (for local deletion), account and Google link.
+- **Cloud copies:** `POST /cloud/to-delete` adds them to one "🗑 To delete" album per account (created once and reused) and marks them. The user opens the album in Google Photos, selects all and deletes. The cloud check then records them as `deleted_in_cloud`.
+- **The API can't delete albums either**, so the emptied album stays and is reused next time.
 
 **Selective cleanup:** the app requests a cleanup plan for the chosen folders. The backend returns the files that are `verified`, in folders with `cleanup = allowed`, and not protected. The app shows a preview, the user confirms, the app deletes, then reports back with `present_on_device = false`.
 
-**Restore folder (first version):**
-1. You pick a folder.
-2. The backend fetches fresh `baseUrl`s for that folder's items from every account. The links expire after about 60 minutes, so they're fetched just before download.
-3. It returns them with the original paths and GPS.
+**Restore folder (first version, `POST /restore/plan` + `/restore/done`):**
+1. You pick a folder. Sub-folders are included, and the photos may come from any of your phones.
+2. The backend fetches fresh `baseUrl`s for that folder's items from every account. The links expire after about 60 minutes, so they're fetched just before download. Files the device already has are skipped. Items deleted in Google are listed as `missing_in_google`.
+3. It returns them with the original paths, GPS and per-account access tokens.
 4. The app downloads each one (`=d` for photos, `=dv` for videos) into the same `relative_path`.
-5. It writes GPS back into EXIF if Google removed it.
-6. It reports the restored file's new hash, which the backend links to the same `media`, so it's never uploaded again.
+5. **It writes GPS back into EXIF.** Verified live (A3): Google's download **strips GPS** and changes the bytes.
+6. It reports the restored file's hash. Because the bytes differ, the backend creates a new `media` row linked to the **same Google item**, so it counts as backed up and is never re-uploaded. Dashboard counts use distinct Google items, so these links aren't double-counted.
 
 Media downloads have their own quota of 75k per day.
 
@@ -140,14 +155,15 @@ Status: ✅ built · ⬜ planned. The live list is in `internal/api/` (routes ar
 | `POST /uploads` | ✅ | Phone reports `{file_id, account_id, upload_token}`. The backend creates the album if needed, runs `batchCreate` (description = original path), records and verifies. Per-file status: `backed_up`, `already_backed_up`, `account_full`, `failed` or `invalid` |
 | `GET /rules`, `PUT /rules` | ✅ | Folder rules `{path, target_account_id, backup, cleanup, priority}`. PUT replaces the whole set |
 
-Planned (the paths may change while they're built):
-
-| Endpoint | Status | Purpose |
-|---|---|---|
-| `POST /cleanup/plan` | ⬜ | Files that may be deleted from chosen folders |
-| `POST /cleanup/done` | ⬜ | App reports deleted files |
-| `GET /dashboard` | ⬜ | Per-account active periods, photo date ranges, counts, folders, remaining space; "where is this photo?" |
-| `GET /photos?taken_from=&taken_to=` | ⬜ | Which accounts hold photos taken in a period |
+| `POST /cleanup/plan` | ✅ | `{device_id, folders}` → safely deletable phone files (verified, not protected, still on the phone) + total size + `kept` counts by reason (`protected`, `not_backed_up`, `not_verified`) |
+| `POST /cleanup/done` | ✅ | `{device_id, file_ids}`: files the phone actually deleted. Only verified backups are accepted |
+| `POST /restore/plan` | ✅ | `{device_id, folder}` → download links, paths, GPS, tokens; `already_on_device`, `missing_in_google` |
+| `POST /restore/done` | ✅ | `{device_id, items:[{media_id, relative_path, display_name, size, sha256}]}`: links the restored bytes to the original backup |
+| `GET /similar` | ✅ | Groups of look-alike photos (`looks_alike` / `same_name_and_date`), with every copy's location |
+| `POST /cloud/to-delete` | ✅ | `{media_ids}` → adds their cloud copies to each account's "🗑 To delete" album; returns per-account album link and waiting count |
+| `POST /cloud/check` | ✅ | Runs the cloud check now (it also runs on a schedule) |
+| `GET /dashboard` | ✅ | Per account: role, current?, full, free storage, active periods, item count, photo-date range, folders, last upload, To delete waiting. Plus phone file counts by state, and alerts (`account_full`, `no_account_available`, `to_delete_waiting`, `account_unreachable`) |
+| `GET /photos/where?month=YYYY-MM` or `?from=&to=` | ✅ | Which accounts hold photos taken in that period (end date inclusive), plus the count of undated backups |
 
 ## Points to note
 - **We hold users' Google tokens.** Encrypt them at rest. That's fine for personal use, and it is a privacy-policy item if published.

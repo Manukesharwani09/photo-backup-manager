@@ -58,6 +58,7 @@ type syncFile struct {
 	Height       *int     `json:"height"`
 	GPSLat       *float64 `json:"gps_lat"`
 	GPSLng       *float64 `json:"gps_lng"`
+	PHash        *string  `json:"phash"` // optional 64-bit perceptual hash, 16 hex characters
 	Source       string   `json:"source"`
 }
 
@@ -142,6 +143,13 @@ func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "check backup", err)
 			return
 		}
+		deliberate := false
+		if !backed {
+			if deliberate, err = s.Store.DeletedOnPurpose(ctx, mediaID); err != nil {
+				httpError(w, "check deletions", err)
+				return
+			}
+		}
 		rule := plan.RuleFor(rules, meta.RelativePath)
 		var state string
 		switch {
@@ -151,6 +159,8 @@ func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
 			state = StateExistingSkip
 		case prevState == StateExistingSkip && !changed:
 			state = StateExistingSkip // present at the start point: never uploaded
+		case deliberate:
+			state = StateExcluded // user removed it from Google via "To delete": don't bring it back
 		case rule != nil && rule.Backup == "exclude":
 			state = StateExcluded
 		default:
@@ -232,6 +242,14 @@ func toMeta(f syncFile) (store.FileMeta, string) {
 			return m, m.RelativePath + "/" + m.DisplayName + ": date_taken must be RFC 3339"
 		}
 		m.DateTaken = &t
+	}
+	if f.PHash != nil && *f.PHash != "" {
+		v, err := strconv.ParseUint(*f.PHash, 16, 64)
+		if err != nil || len(*f.PHash) != 16 {
+			return m, m.RelativePath + "/" + m.DisplayName + ": phash must be 16 hex characters"
+		}
+		signed := int64(v)
+		m.PHash = &signed
 	}
 	if (m.GPSLat == nil) != (m.GPSLng == nil) ||
 		(m.GPSLat != nil && (*m.GPSLat < -90 || *m.GPSLat > 90 || *m.GPSLng < -180 || *m.GPSLng > 180)) {
@@ -441,19 +459,23 @@ func (s *Server) uploads(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ensureAlbum(ctx context.Context, client *http.Client, accountID int64, folder string) (int64, string, error) {
-	row, gid, err := s.Store.Album(ctx, accountID, folder)
+	return s.ensureNamedAlbum(ctx, client, accountID, folder, plan.AlbumTitle(folder))
+}
+
+// ensureNamedAlbum returns the album for key in an account, creating it in Google on first use.
+func (s *Server) ensureNamedAlbum(ctx context.Context, client *http.Client, accountID int64, key, title string) (int64, string, error) {
+	row, gid, err := s.Store.Album(ctx, accountID, key)
 	if err == nil {
 		return row, gid, nil
 	}
 	if !errors.Is(err, store.ErrNotFound) {
 		return 0, "", err
 	}
-	title := plan.AlbumTitle(folder)
-	gid, err = google.CreateAlbum(ctx, client, title)
+	gid, link, err := google.CreateAlbum(ctx, client, title)
 	if err != nil {
 		return 0, "", err
 	}
-	row, err = s.Store.SaveAlbum(ctx, accountID, folder, title, gid)
+	row, err = s.Store.SaveAlbum(ctx, accountID, key, title, gid, link)
 	return row, gid, err
 }
 

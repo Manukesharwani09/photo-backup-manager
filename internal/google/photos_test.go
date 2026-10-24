@@ -123,11 +123,34 @@ func TestCreateAlbum(t *testing.T) {
 		if in["album"]["title"] != "DCIM › Camera" {
 			t.Errorf("title %q", in["album"]["title"])
 		}
-		io.WriteString(w, `{"id":"alb1","title":"DCIM › Camera"}`)
+		io.WriteString(w, `{"id":"alb1","title":"DCIM › Camera","productUrl":"https://photos/alb1"}`)
 	})
-	id, err := CreateAlbum(context.Background(), http.DefaultClient, "DCIM › Camera")
-	if err != nil || id != "alb1" {
-		t.Fatalf("got %q %v", id, err)
+	id, link, err := CreateAlbum(context.Background(), http.DefaultClient, "DCIM › Camera")
+	if err != nil || id != "alb1" || link != "https://photos/alb1" {
+		t.Fatalf("got %q %q %v", id, link, err)
+	}
+}
+
+func TestAddToAlbum(t *testing.T) {
+	fakePhotos(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/albums/a 1:batchAddMediaItems" {
+			t.Errorf("path %q", r.URL.Path)
+		}
+		var in map[string][]string
+		json.NewDecoder(r.Body).Decode(&in)
+		if len(in["mediaItemIds"]) != 2 {
+			t.Errorf("ids %v", in)
+		}
+		io.WriteString(w, `{}`)
+	})
+	if err := AddToAlbum(context.Background(), http.DefaultClient, "a 1", []string{"x", "y"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddToAlbum(context.Background(), http.DefaultClient, "a", nil); err != nil {
+		t.Fatal("empty add should be a no-op")
+	}
+	if err := AddToAlbum(context.Background(), http.DefaultClient, "a", make([]string, MaxBatch+1)); err == nil {
+		t.Fatal("oversized add accepted")
 	}
 }
 

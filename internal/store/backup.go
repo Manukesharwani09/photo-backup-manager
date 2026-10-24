@@ -27,6 +27,7 @@ type FileMeta struct {
 	Height       *int
 	GPSLat       *float64
 	GPSLng       *float64
+	PHash        *int64 // 64-bit perceptual hash stored as its signed bit pattern
 	Source       string
 }
 
@@ -55,16 +56,17 @@ func (s *Store) MarkFirstScan(ctx context.Context, deviceID int64) error {
 // before this call ("" if new) and whether its content (media) changed since the last report.
 func (s *Store) UpsertFile(ctx context.Context, userID, deviceID int64, f FileMeta) (fileID, mediaID int64, prevState string, contentChanged bool, err error) {
 	err = s.Pool.QueryRow(ctx, `
-		INSERT INTO media (user_id, sha256, width, height, date_taken, gps_lat, gps_lng)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO media (user_id, sha256, width, height, date_taken, gps_lat, gps_lng, phash)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (user_id, sha256) DO UPDATE SET
+		  phash = COALESCE(media.phash, EXCLUDED.phash),
 		  width = COALESCE(media.width, EXCLUDED.width),
 		  height = COALESCE(media.height, EXCLUDED.height),
 		  date_taken = COALESCE(media.date_taken, EXCLUDED.date_taken),
 		  gps_lat = COALESCE(media.gps_lat, EXCLUDED.gps_lat),
 		  gps_lng = COALESCE(media.gps_lng, EXCLUDED.gps_lng)
 		RETURNING id`,
-		userID, f.SHA256, f.Width, f.Height, f.DateTaken, f.GPSLat, f.GPSLng).Scan(&mediaID)
+		userID, f.SHA256, f.Width, f.Height, f.DateTaken, f.GPSLat, f.GPSLng, f.PHash).Scan(&mediaID)
 	if err != nil {
 		return
 	}
@@ -98,6 +100,15 @@ func (s *Store) SetFileState(ctx context.Context, fileID int64, state string) er
 func (s *Store) IsBackedUp(ctx context.Context, mediaID int64) (bool, error) {
 	var ok bool
 	err := s.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM backup_record WHERE media_id = $1 AND status IN ('uploaded','verified'))`, mediaID).Scan(&ok)
+	return ok, err
+}
+
+// DeletedOnPurpose reports whether the user sent this media's cloud copy to "To delete" and then
+// deleted it in Google Photos. Such a photo must never be uploaded again.
+func (s *Store) DeletedOnPurpose(ctx context.Context, mediaID int64) (bool, error) {
+	var ok bool
+	err := s.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM backup_record
+		WHERE media_id = $1 AND status = 'deleted_in_cloud' AND marked_for_delete_at IS NOT NULL)`, mediaID).Scan(&ok)
 	return ok, err
 }
 
@@ -235,12 +246,12 @@ func (s *Store) Album(ctx context.Context, accountID int64, folder string) (rowI
 	return
 }
 
-func (s *Store) SaveAlbum(ctx context.Context, accountID int64, folder, title, googleID string) (int64, error) {
+func (s *Store) SaveAlbum(ctx context.Context, accountID int64, folder, title, googleID, productURL string) (int64, error) {
 	var id int64
 	err := s.Pool.QueryRow(ctx, `
-		INSERT INTO album (account_id, folder_path, title, gphotos_album_id) VALUES ($1,$2,$3,$4)
-		ON CONFLICT (account_id, folder_path) DO UPDATE SET gphotos_album_id = EXCLUDED.gphotos_album_id
-		RETURNING id`, accountID, folder, title, googleID).Scan(&id)
+		INSERT INTO album (account_id, folder_path, title, gphotos_album_id, product_url) VALUES ($1,$2,$3,$4,$5)
+		ON CONFLICT (account_id, folder_path) DO UPDATE SET gphotos_album_id = EXCLUDED.gphotos_album_id, product_url = EXCLUDED.product_url
+		RETURNING id`, accountID, folder, title, googleID, productURL).Scan(&id)
 	return id, err
 }
 

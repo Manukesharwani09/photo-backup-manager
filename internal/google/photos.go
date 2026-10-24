@@ -47,19 +47,33 @@ func UploadBytes(ctx context.Context, client *http.Client, fileName, mimeType st
 	return tok, nil
 }
 
-// CreateAlbum makes an app-created album and returns its id.
-func CreateAlbum(ctx context.Context, client *http.Client, title string) (string, error) {
+// CreateAlbum makes an app-created album and returns its id and Google Photos link.
+func CreateAlbum(ctx context.Context, client *http.Client, title string) (id, productURL string, err error) {
 	var out struct {
-		ID string `json:"id"`
+		ID         string `json:"id"`
+		ProductURL string `json:"productUrl"`
 	}
 	in := map[string]any{"album": map[string]string{"title": title}}
 	if err := postJSON(ctx, client, PhotosAPI+"/albums", in, &out); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if out.ID == "" {
-		return "", fmt.Errorf("create album: no id returned")
+		return "", "", fmt.Errorf("create album: no id returned")
 	}
-	return out.ID, nil
+	return out.ID, out.ProductURL, nil
+}
+
+// AddToAlbum adds up to MaxBatch app-created items to an app-created album.
+func AddToAlbum(ctx context.Context, client *http.Client, albumID string, mediaItemIDs []string) error {
+	if len(mediaItemIDs) == 0 {
+		return nil
+	}
+	if len(mediaItemIDs) > MaxBatch {
+		return fmt.Errorf("batchAddMediaItems: %d ids exceeds %d", len(mediaItemIDs), MaxBatch)
+	}
+	var out struct{}
+	return postJSON(ctx, client, PhotosAPI+"/albums/"+url.PathEscape(albumID)+":batchAddMediaItems",
+		map[string]any{"mediaItemIds": mediaItemIDs}, &out)
 }
 
 // NewItem is one upload token to turn into a media item.

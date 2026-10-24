@@ -41,6 +41,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /oauth/start", s.oauthStart)
 	mux.HandleFunc("GET /oauth/callback", s.oauthCallback)
 	mux.HandleFunc("GET /accounts", s.listAccounts)
+	mux.HandleFunc("POST /accounts/{id}/full", s.markFull)
+	mux.HandleFunc("POST /devices", s.createDevice)
+	mux.HandleFunc("POST /sync", s.sync)
+	mux.HandleFunc("POST /uploads", s.uploads)
+	mux.HandleFunc("GET /rules", s.getRules)
+	mux.HandleFunc("PUT /rules", s.putRules)
 	return mux
 }
 

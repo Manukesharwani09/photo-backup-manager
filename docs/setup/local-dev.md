@@ -24,9 +24,9 @@ Migrations run automatically on every start.
 ## Tests
 ```bash
 createdb photobackup_test   # once; disposable, every DB test wipes it
-TEST_DATABASE_URL='postgres:///photobackup_test?host=/var/run/postgresql' go test -count=1 ./...
+TEST_DATABASE_URL='postgres:///photobackup_test?host=/var/run/postgresql' go test -count=1 -p 1 ./...
 ```
-Without `TEST_DATABASE_URL`, the DB tests in `internal/store` are skipped, and the rest still run. **Never point `TEST_DATABASE_URL` at `photobackup`.**
+`-p 1` matters: the `store` and `api` packages share the test DB, so they must not run in parallel. Without `TEST_DATABASE_URL`, the DB tests in `internal/store` and `internal/api` are skipped, and the rest still run. **Never point `TEST_DATABASE_URL` at `photobackup`.**
 
 ## Connect Google accounts
 Open these in a browser where the account is signed in:

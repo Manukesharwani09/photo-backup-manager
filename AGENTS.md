@@ -19,7 +19,7 @@ Go 1.27 · PostgreSQL 18 (local, no Docker) · Google OAuth 2.0 · Google Photos
 ```bash
 gofmt -l . && go vet ./... && go build -o bin/server ./cmd/server
 ./bin/server        # reads ./.env, auto-migrates DB "photobackup", serves http://localhost:8080
-TEST_DATABASE_URL='postgres:///photobackup_test?host=/var/run/postgresql' go test -count=1 ./...
+TEST_DATABASE_URL='postgres:///photobackup_test?host=/var/run/postgresql' go test -count=1 -p 1 ./...
 ```
 **All tests must pass before committing.** Add tests for every new behaviour, especially the edge cases. Record what is and isn't covered in `docs/progress/status.md`.
 If `go` prints nothing (snap wrapper inside a sandbox), use `/snap/go/current/bin/go`. Full details: [docs/setup/local-dev.md](docs/setup/local-dev.md).

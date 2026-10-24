@@ -8,7 +8,9 @@ An Android app that sits in front of **Google Photos** and manages backup across
 
 Google Photos stays the place where the files are stored. The app keeps its own record (the registry) of where every photo is, so it never uploads a photo twice when you switch accounts. It also skips WhatsApp media restored on a new phone, sends set folders to a set account, and only deletes local copies of folders you allow, after their backup is confirmed.
 
-**Status:** idea and feasibility stage. No code yet.
+**Structure:** two services, a **backend** (the brain: accounts, registry, rules, Google API) and an **Android app** (scan, hash, upload bytes, delete).
+
+**Status:** feasibility stage, backend first. No code yet.
 
 ## Docs
 1. [Problem & requirements](docs/01-problem-and-requirements.md)

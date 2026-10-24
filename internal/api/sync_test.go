@@ -165,11 +165,11 @@ func setup(t *testing.T) *env {
 	key := make([]byte, 32)
 	uid, _ := st.DefaultUserID(ctx)
 	enc := func(s string) []byte { b, _ := crypto.Seal(key, []byte(s)); return b }
-	p, err := st.UpsertAccount(ctx, uid, "primary@gmail.com", "primary", enc("rtA"))
+	p, err := st.UpsertAccount(ctx, uid, "primary@gmail.com", "", "primary", enc("rtA"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	o, _ := st.UpsertAccount(ctx, uid, "overflow@gmail.com", "overflow", enc("rtB"))
+	o, _ := st.UpsertAccount(ctx, uid, "overflow@gmail.com", "", "overflow", enc("rtB"))
 
 	s := &Server{Store: st, TokenKey: key, UserID: uid, OAuth: &oauth2.Config{ClientID: "c", ClientSecret: "s",
 		Endpoint: oauth2.Endpoint{TokenURL: g.srv.URL + "/token", AuthStyle: oauth2.AuthStyleInParams}}}

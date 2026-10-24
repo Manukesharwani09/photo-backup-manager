@@ -113,9 +113,9 @@ func (s *Server) oauthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Some permissions were not granted (all checkboxes must be ticked). Missing: "+strings.Join(missing, ", ")+". Start again at /oauth/start.", http.StatusBadRequest)
 		return
 	}
-	email, err := google.Email(ctx, s.OAuth.Client(ctx, tok))
+	email, sub, err := google.Identity(ctx, s.OAuth.Client(ctx, tok))
 	if err != nil {
-		httpError(w, "read account email", err)
+		httpError(w, "read account identity", err)
 		return
 	}
 	enc, err := crypto.Seal(s.TokenKey, []byte(tok.RefreshToken))
@@ -123,9 +123,13 @@ func (s *Server) oauthCallback(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "encrypt token", err)
 		return
 	}
-	id, err := s.Store.UpsertAccount(ctx, s.UserID, email, pending.role, enc)
+	id, err := s.Store.UpsertAccount(ctx, s.UserID, email, sub, pending.role, enc)
 	if errors.Is(err, store.ErrPrimaryExists) {
 		http.Error(w, "Another account is already primary. Connect "+email+" with role=overflow instead.", http.StatusConflict)
+		return
+	}
+	if errors.Is(err, store.ErrLinkedElsewhere) {
+		http.Error(w, email+" is already linked to another owner and can't be linked again.", http.StatusConflict)
 		return
 	}
 	if err != nil {

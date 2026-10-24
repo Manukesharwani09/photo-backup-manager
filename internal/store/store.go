@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -70,19 +72,40 @@ type Account struct {
 // ErrPrimaryExists is returned when connecting a primary account while a different one is already primary.
 var ErrPrimaryExists = errors.New("another account is already primary")
 
+// ErrLinkedElsewhere is returned when the Google account is already linked to a different owner.
+// A Google account can belong to one owner only, whatever its role.
+var ErrLinkedElsewhere = errors.New("this Google account is already linked to another owner")
+
 // UpsertAccount stores a connected Google account (reconnecting refreshes its token).
+// googleSub is Google's stable account id (may be empty in tests); the email is compared case-insensitively.
 // The first account of a user opens its active period. Only one account may be primary.
-func (s *Store) UpsertAccount(ctx context.Context, userID int64, email, role string, tokenEnc []byte) (int64, error) {
+func (s *Store) UpsertAccount(ctx context.Context, userID int64, email, googleSub, role string, tokenEnc []byte) (int64, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	var sub *string
+	if googleSub != "" {
+		sub = &googleSub
+	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback(ctx)
 
+	var otherOwner bool
+	err = tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM account WHERE user_id <> $1 AND (lower(email) = $2 OR (google_sub IS NOT NULL AND google_sub = $3)))`,
+		userID, email, sub).Scan(&otherOwner)
+	if err != nil {
+		return 0, err
+	}
+	if otherOwner {
+		return 0, ErrLinkedElsewhere
+	}
+
 	if role == "primary" {
 		var others int
 		err := tx.QueryRow(ctx, `
-			SELECT count(*) FROM account WHERE user_id = $1 AND role = 'primary' AND email <> $2`,
+			SELECT count(*) FROM account WHERE user_id = $1 AND role = 'primary' AND lower(email) <> $2`,
 			userID, email).Scan(&others)
 		if err != nil {
 			return 0, err
@@ -94,11 +117,20 @@ func (s *Store) UpsertAccount(ctx context.Context, userID int64, email, role str
 
 	var id int64
 	err = tx.QueryRow(ctx, `
-		INSERT INTO account (user_id, email, role, refresh_token_enc)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO account (user_id, email, google_sub, role, refresh_token_enc)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (user_id, email) DO UPDATE
-		  SET refresh_token_enc = EXCLUDED.refresh_token_enc, role = EXCLUDED.role
-		RETURNING id`, userID, email, role, tokenEnc).Scan(&id)
+		  SET refresh_token_enc = EXCLUDED.refresh_token_enc, role = EXCLUDED.role,
+		      google_sub = COALESCE(EXCLUDED.google_sub, account.google_sub)
+		RETURNING id`, userID, email, sub, role, tokenEnc).Scan(&id)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		// Lost a race with another owner, or a primary was added concurrently.
+		if pgErr.ConstraintName == "account_one_primary_per_user" {
+			return 0, ErrPrimaryExists
+		}
+		return 0, ErrLinkedElsewhere
+	}
 	if err != nil {
 		return 0, err
 	}

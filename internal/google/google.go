@@ -64,18 +64,19 @@ func AuthURL(cfg *oauth2.Config, state string) string {
 	)
 }
 
-// Email returns the email of the account the client is authorised for.
-func Email(ctx context.Context, client *http.Client) (string, error) {
+// Identity returns the connected account's email and Google's stable account id ("sub").
+func Identity(ctx context.Context, client *http.Client) (email, sub string, err error) {
 	var out struct {
 		Email string `json:"email"`
+		Sub   string `json:"sub"`
 	}
 	if err := getJSON(ctx, client, "https://openidconnect.googleapis.com/v1/userinfo", &out); err != nil {
-		return "", err
+		return "", "", err
 	}
-	if out.Email == "" {
-		return "", fmt.Errorf("userinfo returned no email")
+	if out.Email == "" || out.Sub == "" {
+		return "", "", fmt.Errorf("userinfo returned no email or sub")
 	}
-	return out.Email, nil
+	return out.Email, out.Sub, nil
 }
 
 // DriveAPI is the Drive v3 base URL; tests point it at a fake server.

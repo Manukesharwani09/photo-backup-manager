@@ -134,15 +134,16 @@ Status: ✅ built · ⬜ planned. The live list is in `internal/api/` (routes ar
 | `GET /oauth/start?role=primary\|overflow` | ✅ | Start Google sign-in for one account (redirects to Google) |
 | `GET /oauth/callback` | ✅ | Google redirects here. The backend stores the encrypted refresh token and opens an `account_period` for the first account. Rejects: forged/expired state (400), unticked permissions (400), a second primary account (409) |
 | `GET /accounts` | ✅ | Accounts, roles, full flag, active periods, live remaining storage |
+| `POST /accounts/{id}/full` | ✅ | Mark an account full; the next sync moves new photos to the next account |
+| `POST /devices` | ✅ | Register a phone → `device_id` |
+| `POST /sync` | ✅ | Phone sends its file list (path, name, size, sha256, optional date/size/GPS/source). The first sync records the start point (`existing_skip`). Later syncs return `plan` (file → account + album title), `waiting` (with reason), `rejected` (bad input) and short-lived per-account `tokens` for uploading bytes |
+| `POST /uploads` | ✅ | Phone reports `{file_id, account_id, upload_token}`. The backend creates the album if needed, runs `batchCreate` (description = original path), records and verifies. Per-file status: `backed_up`, `already_backed_up`, `account_full`, `failed` or `invalid` |
+| `GET /rules`, `PUT /rules` | ✅ | Folder rules `{path, target_account_id, backup, cleanup, priority}`. PUT replaces the whole set |
 
 Planned (the paths may change while they're built):
 
 | Endpoint | Status | Purpose |
 |---|---|---|
-| `POST /devices` | ⬜ | Register a phone |
-| `POST /sync` | ⬜ | App sends new or changed file metadata and hashes; returns the upload plan |
-| `POST /uploads` | ⬜ | App reports uploadTokens; backend runs `batchCreate`, album and verify |
-| `GET/PUT /rules` | ⬜ | Folder rules |
 | `POST /cleanup/plan` | ⬜ | Files that may be deleted from chosen folders |
 | `POST /cleanup/done` | ⬜ | App reports deleted files |
 | `GET /dashboard` | ⬜ | Per-account active periods, photo date ranges, counts, folders, remaining space; "where is this photo?" |

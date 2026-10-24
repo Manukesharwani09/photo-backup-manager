@@ -2,6 +2,26 @@
 
 One entry per task (not per commit), newest first. Each entry says what was done, which commits it covers, and anything a future agent must know.
 
+## 2026-10-24: Sync + upload (proof-of-concept steps 2–8)
+- Commits: `9418138` (planner), `4c671e5` (Photos client), `09b7491` (sync/upload API + end-to-end tests), `954e698` (phonesim + test photo generator).
+- What was built:
+  - `internal/plan`: pure decisions (rule matching, album title, account choice).
+  - `internal/google/photos.go`: upload, albums, batchCreate, batchGet.
+  - `internal/store/backup.go` and migration 002: a unique index allows only one live backup per photo.
+  - `internal/api/sync.go`: `/devices`, `/sync`, `/uploads`, `/rules`, `/accounts/{id}/full`.
+  - `cmd/phonesim`: the stand-in phone.
+- Live run against real Google:
+  - The first scan skipped 2 start-point photos.
+  - 3 new photos were uploaded to `mkesharwani125` and verified, in albums `DCIM › Camera` and `Documents › Bills`.
+  - The duplicate copy and the excluded `Private` photo were not uploaded.
+  - The re-sync planned nothing.
+  - **A2 is verified**, so the split upload design is confirmed.
+- Gotchas:
+  - The `store` and `api` tests share `photobackup_test`, so run `go test -p 1`.
+  - A fake OAuth token endpoint must reply with `Content-Type: application/json`, or `x/oauth2` can't find the token.
+  - PIL needs EXIF GPS as float rationals, not `(num, den)` tuples.
+- Account switch: tested with a fake Google only, so the real primary isn't left flagged full.
+
 ## 2026-10-24: Real sign-in verified
 - Connected `mkesharwani125@gmail.com` (primary) and `tanyamishra12346789@gmail.com` (overflow), at the user's request, by driving Brave over CDP. No passwords were used; both accounts were already signed in.
 - Sign-in flow seen:

@@ -77,7 +77,7 @@ Size: a hash is 32 bytes and a row is about 300 bytes, so 50k photos is about 15
 Look-alikes with different bytes are uploaded, and the backend also groups them for the **"Similar photos"** feature:
 - **How it groups them:** the app sends a perceptual hash (based on what the image looks like). The backend groups photos whose perceptual hashes are close, or whose filename, date taken, width × height and size match.
 - **What the user can do:** review a group and delete local copies to free phone space.
-- **Cloud copies:** the API can't delete them, so the app opens them in Google Photos (`productUrl`) for manual removal.
+- **Cloud copies:** the API can't delete them. Instead, the backend adds them to a **"🗑 To delete"** album in each account (all are our own uploads, so this is allowed). The app shows "Account A: 12 photos to delete → Open". One tap opens that album in Google Photos, where the user selects all and deletes. The scheduled cloud check then notices they're gone, updates the records, and removes the emptied album.
 
 ## Other flows
 **First scan on a phone:** the app sends everything on the phone. The backend sets every file not already in the registry to `existing_skip`, and they are never uploaded. From then on, only new files are backed up.

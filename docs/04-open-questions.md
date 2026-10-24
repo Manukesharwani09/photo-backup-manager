@@ -20,6 +20,8 @@
 | Same-photo rule | **Only an exact SHA-256 match is skipped.** Anything with different bytes is uploaded, even if it looks the same (WhatsApp re-send, edit). |
 | Similar photos | **A "Similar photos" feature** groups look-alikes using the perceptual hash, plus name, date and size. The user can review a group and free phone space by deleting local copies. Cloud duplicates can't be deleted through the API, so the app opens them in Google Photos for manual removal. |
 
+| Deleting cloud copies | Not possible through the API. Duplicates go into a **"🗑 To delete"** album per account. The user opens it in Google Photos, selects all and deletes. For single photos, the app opens the photo directly (`productUrl`). |
+
 ## Still open
 None right now. The next step is the backend proof of concept.
 
@@ -36,8 +38,9 @@ No phone needed. A **script stands in for the app**, using a local folder of tes
 9. **Cleanup plan:** returns only verified, non-protected files from allowed folders (Documents excluded).
 10. **Restore:** download one album's photos with `baseUrl=d` (`=dv` for videos) into a local folder with the original paths. Write GPS back if it was removed. Link the restored file's new hash to the same item.
 11. **Similar photos:** a re-compressed copy of a test photo is uploaded (different bytes) and grouped with the original in the "similar" results.
-12. **Remaining space:** `about.get` → `storageQuota` per account, using the narrowest Drive scope that works.
-13. **Checks:**
+12. **"To delete" album:** add duplicates to it, delete them by hand in Google Photos, and confirm the cloud check marks them `deleted_in_cloud` and removes the empty album.
+13. **Remaining space:** `about.get` → `storageQuota` per account, using the narrowest Drive scope that works.
+14. **Checks:**
     - Does `baseUrl=d` download remove GPS?
     - Does Google Photos search find the description?
     - Do motion photos and HEIC files survive the upload?

@@ -17,3 +17,4 @@ Google Photos stays the place where the files are stored. The app keeps its own 
 2. [Feasibility: what Google / Android / third parties support](docs/02-feasibility-third-party.md)
 3. [Architecture](docs/03-architecture.md)
 4. [Open questions & next step](docs/04-open-questions.md)
+5. [Discussion: Google Drive instead of Google Photos](docs/05-drive-alternative-discussion.md) (not chosen)

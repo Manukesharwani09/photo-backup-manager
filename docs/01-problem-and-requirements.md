@@ -28,10 +28,12 @@ Google Photos limits storage per account, so people with large libraries spread 
 | FR-1 | **Multi-account management.** Register several Google accounts, set roles (primary / overflow), notice when an account is full, and switch destination. | #1 |
 | FR-2 | **Central backup registry.** Keep a lasting list of local files: fingerprint, path, date, backup status, destination account, and whether the upload is confirmed. Show coverage per account (date ranges, folders, counts). | #2 |
 | FR-3 | **Incremental backup across accounts.** Upload only new files that aren't recorded in *any* account. Never require deleting local files to continue. | #3 |
-| FR-4 | **WhatsApp restore dedup.** Media present at the first scan, or whose fingerprint is already in the registry, is skipped. New WhatsApp media is backed up as usual. Unclear matches go to you to decide. | #4 |
+| FR-4 | **WhatsApp restore dedup.** Media present at the first scan, or whose fingerprint (SHA-256) is already in the registry, is skipped. New WhatsApp media is backed up as usual. Look-alikes with different bytes are uploaded and shown under "Similar photos". | #4 |
 | FR-5 | **Folder policies.** Each folder has a target account, include/exclude, and protected/cleanable. Example: Documents goes to the primary account and is protected. | #5 |
 | FR-6 | **Selective cleanup.** Delete local copies only for folders you allow, only when the upload is confirmed, never from protected or unbacked files. Show a preview and ask for confirmation first. | #6 |
-| FR-7 | **Folder grouping.** Store each file's original path. Create one album per phone folder, named after its path. Show the folder view inside the app. Optionally restore photos back into the same folders. | #7 |
+| FR-7 | **Folder grouping.** Store each file's original path. Create one album per phone folder, named after its path. Show the folder view inside the app. **Restore** a folder's photos back into the same phone folder (first version). | #7 |
+| FR-8 | **Similar photos.** Group look-alike photos (different bytes, same picture) so the user can review them and free phone space. | extra |
+| FR-9 | **Storage left.** Show the remaining free space for each account. | #1 |
 
 ## Core design principle
 There are three separate layers, and none may silently override another:

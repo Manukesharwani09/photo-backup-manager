@@ -56,7 +56,8 @@ device_file(id, device_id, media_id, relative_path, display_name, size,
             state[existing_skip|pending|backed_up|excluded], present_on_device)
 
 backup_record(id, media_id, account_id, gphotos_media_item_id, product_url, album_id,
-              status[uploaded|verified|failed], uploaded_at, verified_at)
+              status[uploaded|verified|failed|deleted_in_cloud], uploaded_at, verified_at,
+              last_checked_at)
 
 folder_rule(id, user_id, path_glob, target_account_id NULL, backup[include|exclude],
             cleanup[allowed|protected], priority)
@@ -68,12 +69,15 @@ album(id, account_id, folder_path, title, gphotos_album_id)
 Size: a hash is 32 bytes and a row is about 300 bytes, so 50k photos is about 15 MB per user.
 
 ## Same-photo detection (backend)
-| Match | Confidence | Action |
-|---|---|---|
-| SHA-256 equal | Certain | Skip automatically |
-| Filename + date taken + width × height + roughly the size equal | High | Skip, marked "assumed" |
-| Perceptual hash close (sent by the app) | Medium | Ask the user |
-| No match | — | Upload |
+| Match | Action |
+|---|---|
+| SHA-256 equal (same bytes) | **Skip**, already backed up |
+| Anything else | **Upload** |
+
+Look-alikes with different bytes are uploaded, and the backend also groups them for the **"Similar photos"** feature:
+- **How it groups them:** the app sends a perceptual hash (based on what the image looks like). The backend groups photos whose perceptual hashes are close, or whose filename, date taken, width × height and size match.
+- **What the user can do:** review a group and delete local copies to free phone space.
+- **Cloud copies:** the API can't delete them, so the app opens them in Google Photos (`productUrl`) for manual removal.
 
 ## Other flows
 **First scan on a phone:** the app sends everything on the phone. The backend sets every file not already in the registry to `existing_skip`, and they are never uploaded. From then on, only new files are backed up.
@@ -82,9 +86,22 @@ Size: a hash is 32 bytes and a row is about 300 bytes, so 50k photos is about 15
 
 **Account full:** `batchCreate` (or the upload) returns a storage error. The backend sets `full_flag`, picks the next overflow account (or asks the user), and the next plan points there. Pending files only.
 
+**Cloud check (scheduled):** the Google Photos API has no delete, but you can delete photos yourself in the Google Photos app. So the backend regularly runs `mediaItems.batchGet` (50 per call) on its records:
+- If an item comes back "not found", its record is set to `deleted_in_cloud`, and that photo no longer counts as backed up.
+- If the photo is still on the phone, it becomes `pending` again.
+- If it isn't on the phone anymore, it's flagged on the dashboard.
+
 **Selective cleanup:** the app requests a cleanup plan for the chosen folders. The backend returns the files that are `verified`, in folders with `cleanup = allowed`, and not protected. The app shows a preview, the user confirms, the app deletes, then reports back with `present_on_device = false`.
 
-**Restore folder (optional):** the backend gives the app the `baseUrl=d` download links for our uploads plus the original paths and GPS. The app writes the files back into the same folders and restores the GPS in EXIF if Google removed it.
+**Restore folder (first version):**
+1. You pick a folder.
+2. The backend fetches fresh `baseUrl`s for that folder's items from every account. The links expire after about 60 minutes, so they're fetched just before download.
+3. It returns them with the original paths and GPS.
+4. The app downloads each one (`=d` for photos, `=dv` for videos) into the same `relative_path`.
+5. It writes GPS back into EXIF if Google removed it.
+6. It reports the restored file's new hash, which the backend links to the same `media`, so it's never uploaded again.
+
+Media downloads have their own quota of 75k per day.
 
 ## Backend API (first cut)
 | Endpoint | Purpose |

@@ -17,11 +17,12 @@ type AccountStats struct {
 }
 
 // AccountStats aggregates live backups per account: count, photo-date range, last upload, folders.
+// Counts are of distinct Google items: a restored file is linked to the same item as its original.
 func (s *Store) AccountStats(ctx context.Context, userID int64) (map[int64]*AccountStats, error) {
 	out := map[int64]*AccountStats{}
 	rows, err := s.Pool.Query(ctx, `
-		SELECT b.account_id, count(*), min(m.date_taken), max(m.date_taken), max(b.uploaded_at),
-		       count(*) FILTER (WHERE b.marked_for_delete_at IS NOT NULL)
+		SELECT b.account_id, count(DISTINCT b.gphotos_media_item_id), min(m.date_taken), max(m.date_taken), max(b.uploaded_at),
+		       count(DISTINCT b.gphotos_media_item_id) FILTER (WHERE b.marked_for_delete_at IS NOT NULL)
 		FROM backup_record b JOIN media m ON m.id = b.media_id JOIN account a ON a.id = b.account_id
 		WHERE a.user_id = $1 AND b.status IN ('uploaded', 'verified')
 		GROUP BY b.account_id`, userID)
@@ -94,7 +95,7 @@ type TakenIn struct {
 // WhereTaken answers "which accounts hold my photos taken between from and to?" (to exclusive).
 func (s *Store) WhereTaken(ctx context.Context, userID int64, from, to time.Time) ([]TakenIn, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT a.id, a.email, count(DISTINCT m.id),
+		SELECT a.id, a.email, count(DISTINCT b.gphotos_media_item_id),
 		       COALESCE(array_agg(DISTINCT f.relative_path) FILTER (WHERE f.relative_path IS NOT NULL), '{}')
 		FROM backup_record b
 		JOIN media m ON m.id = b.media_id

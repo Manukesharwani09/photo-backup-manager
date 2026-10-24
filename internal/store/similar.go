@@ -156,7 +156,7 @@ func (s *Store) AlbumLink(ctx context.Context, accountID int64, folder string) (
 // PendingDeletes counts, per account, cloud copies marked for deletion that are still in Google.
 func (s *Store) PendingDeletes(ctx context.Context, userID int64) (map[int64]int, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT b.account_id, count(*) FROM backup_record b JOIN account a ON a.id = b.account_id
+		SELECT b.account_id, count(DISTINCT b.gphotos_media_item_id) FROM backup_record b JOIN account a ON a.id = b.account_id
 		WHERE a.user_id = $1 AND b.marked_for_delete_at IS NOT NULL AND b.status IN ('uploaded', 'verified')
 		GROUP BY b.account_id`, userID)
 	if err != nil {

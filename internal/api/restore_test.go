@@ -94,6 +94,17 @@ func TestRestoreToNewPhone(t *testing.T) {
 			t.Fatalf("sync %d after restore: %+v", i, out)
 		}
 	}
+	// Restored copies point at the same Google items: the dashboard must not count them twice.
+	var d dashResp
+	e.call("GET", "/dashboard", nil, http.StatusOK, &d)
+	if d.Accounts[0].Items != 3 {
+		t.Fatalf("primary holds 3 photos, dashboard says %d", d.Accounts[0].Items)
+	}
+	var where struct{ Accounts []struct{ Items int } }
+	e.call("GET", "/photos/where?from=1970-01-01&to=2100-01-01", nil, http.StatusOK, &where)
+	if len(where.Accounts) != 0 {
+		t.Fatalf("test photos are undated, expected no dated matches: %+v", where)
+	}
 	// Restoring again: everything is already there.
 	if again := e.restorePlan(dev.DeviceID, "DCIM"); len(again.Items) != 0 || again.AlreadyOnDevice != 2 {
 		t.Fatalf("second restore: %+v", again)

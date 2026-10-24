@@ -82,6 +82,31 @@ func RuleFor(rules []Rule, folder string) *Rule {
 	return best
 }
 
+// Reasons a phone file may not be deleted by cleanup.
+const (
+	KeepProtected   = "protected"     // its folder rule says cleanup: protected
+	KeepNotBackedUp = "not_backed_up" // skipped, excluded or still pending: deleting would lose it
+	KeepUnverified  = "not_verified"  // uploaded but Google hasn't confirmed it yet
+	KeepNotOnDevice = "not_on_device" // already removed
+)
+
+// CleanupBlocker returns "" if a phone file may be deleted, otherwise why not.
+// backupStatus is the media's live backup status: "verified", "uploaded" or "" (none).
+// Only verified backups qualify: a photo is deleted from the phone only once Google has confirmed it.
+func CleanupBlocker(rule *Rule, onDevice bool, backupStatus string) string {
+	switch {
+	case !onDevice:
+		return KeepNotOnDevice
+	case rule != nil && rule.Cleanup == "protected":
+		return KeepProtected
+	case backupStatus == "":
+		return KeepNotBackedUp
+	case backupStatus != "verified":
+		return KeepUnverified
+	}
+	return ""
+}
+
 // Reason values explain why a file is not planned for upload.
 const (
 	ReasonNoAccount      = "no_account_available" // nothing usable: all full, disabled or none connected

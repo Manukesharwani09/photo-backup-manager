@@ -86,6 +86,30 @@ func TestRuleForPrecedence(t *testing.T) {
 	}
 }
 
+func TestCleanupBlocker(t *testing.T) {
+	protected := &Rule{Cleanup: "protected"}
+	allowed := &Rule{Cleanup: "allowed"}
+	cases := []struct {
+		rule   *Rule
+		on     bool
+		status string
+		want   string
+	}{
+		{nil, true, "verified", ""},
+		{allowed, true, "verified", ""},
+		{protected, true, "verified", KeepProtected}, // Documents: never cleaned
+		{nil, true, "", KeepNotBackedUp},             // start-point / excluded / pending
+		{nil, true, "uploaded", KeepUnverified},      // not yet confirmed by Google
+		{nil, false, "verified", KeepNotOnDevice},
+		{protected, false, "", KeepNotOnDevice},
+	}
+	for _, c := range cases {
+		if got := CleanupBlocker(c.rule, c.on, c.status); got != c.want {
+			t.Errorf("CleanupBlocker(%+v, %v, %q) = %q, want %q", c.rule, c.on, c.status, got, c.want)
+		}
+	}
+}
+
 func TestChooseAccount(t *testing.T) {
 	primary := Account{ID: 1, Role: "primary", Active: true, IsCurrent: true}
 	b := Account{ID: 2, Role: "overflow", Active: true}

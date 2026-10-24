@@ -47,6 +47,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /uploads", s.uploads)
 	mux.HandleFunc("GET /rules", s.getRules)
 	mux.HandleFunc("PUT /rules", s.putRules)
+	mux.HandleFunc("POST /cleanup/plan", s.cleanupPlan)
+	mux.HandleFunc("POST /cleanup/done", s.cleanupDone)
 	return mux
 }
 

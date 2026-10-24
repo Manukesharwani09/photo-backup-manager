@@ -104,6 +104,10 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 		}
 		io.WriteString(w, "{}")
 	})
+	mux.HandleFunc("GET /about", func(w http.ResponseWriter, r *http.Request) { // Drive storage quota
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"storageQuota":{"limit":"16106127360","usage":"1073741824"}}`)
+	})
 	mux.HandleFunc("GET /mediaItems:batchGet", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -118,9 +122,9 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 	})
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)
-	old := google.PhotosAPI
-	google.PhotosAPI = f.srv.URL
-	t.Cleanup(func() { google.PhotosAPI = old })
+	oldPhotos, oldDrive := google.PhotosAPI, google.DriveAPI
+	google.PhotosAPI, google.DriveAPI = f.srv.URL, f.srv.URL
+	t.Cleanup(func() { google.PhotosAPI, google.DriveAPI = oldPhotos, oldDrive })
 	return f
 }
 

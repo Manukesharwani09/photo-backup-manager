@@ -78,6 +78,9 @@ func Email(ctx context.Context, client *http.Client) (string, error) {
 	return out.Email, nil
 }
 
+// DriveAPI is the Drive v3 base URL; tests point it at a fake server.
+var DriveAPI = "https://www.googleapis.com/drive/v3"
+
 // StorageQuota is the account's shared storage (Gmail + Drive + Photos), in bytes.
 type StorageQuota struct {
 	Limit int64 `json:"limit,string"` // 0 when the account has unlimited storage
@@ -96,7 +99,7 @@ func Quota(ctx context.Context, client *http.Client) (StorageQuota, error) {
 	var out struct {
 		StorageQuota StorageQuota `json:"storageQuota"`
 	}
-	err := getJSON(ctx, client, "https://www.googleapis.com/drive/v3/about?fields=storageQuota", &out)
+	err := getJSON(ctx, client, DriveAPI+"/about?fields=storageQuota", &out)
 	return out.StorageQuota, err
 }
 

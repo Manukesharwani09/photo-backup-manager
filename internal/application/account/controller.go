@@ -57,3 +57,29 @@ func (c *AccountController) MarkFull(w http.ResponseWriter, r *http.Request) err
 	common.WriteJSON(w, http.StatusOK, MarkFullResponse{AccountID: id, Full: true})
 	return nil
 }
+
+// MarkAvailable: POST /v1/accounts/{id}/available.
+func (c *AccountController) MarkAvailable(w http.ResponseWriter, r *http.Request) error {
+	id, err := common.PathInt64(r, "id")
+	if err != nil {
+		return err
+	}
+	if err := c.service.MarkAvailable(r.Context(), id); err != nil {
+		return err
+	}
+	common.WriteJSON(w, http.StatusOK, AccountStateResponse{AccountID: id, State: "available"})
+	return nil
+}
+
+// MakeCurrent: POST /v1/accounts/{id}/current.
+func (c *AccountController) MakeCurrent(w http.ResponseWriter, r *http.Request) error {
+	id, err := common.PathInt64(r, "id")
+	if err != nil {
+		return err
+	}
+	if err := c.service.MakeCurrent(r.Context(), id); err != nil {
+		return err
+	}
+	common.WriteJSON(w, http.StatusOK, AccountStateResponse{AccountID: id, State: "current"})
+	return nil
+}

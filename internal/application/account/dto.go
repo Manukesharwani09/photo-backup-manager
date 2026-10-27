@@ -34,3 +34,9 @@ type MarkFullResponse struct {
 	AccountID int64 `json:"account_id"`
 	Full      bool  `json:"full"`
 }
+
+// AccountStateResponse is the body of the mark-available and make-current endpoints.
+type AccountStateResponse struct {
+	AccountID int64  `json:"account_id"`
+	State     string `json:"state"` // available | current
+}

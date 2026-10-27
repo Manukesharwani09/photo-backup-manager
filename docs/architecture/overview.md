@@ -150,6 +150,8 @@ Status: ✅ built · ⬜ planned. The live list is `internal/infrastructure/apps
 | `GET /oauth/callback` | ✅ | Google redirects here. The backend stores the encrypted refresh token and opens an `account_period` for the first account. Rejects: forged/expired state (400), unticked permissions (400), a second primary account (409) |
 | `GET /v1/accounts` | ✅ | Accounts, roles, full flag, active periods, live remaining storage |
 | `POST /v1/accounts/{id}/full` | ✅ | Mark an account full; the next sync moves new photos to the next account |
+| `POST /v1/accounts/{id}/available` | ✅ | Clear the full flag after the user freed space (the current account doesn't change) |
+| `POST /v1/accounts/{id}/current` | ✅ | Make this account receive new backups (closes the current period as `manual`). 409 if it's full or disabled |
 | `POST /v1/devices` | ✅ | Register a phone → `device_id` |
 | `POST /v1/sync` | ✅ | Phone sends its file list (path, name, size, sha256, optional date/size/GPS/source). The first sync records the start point (`existing_skip`). Later syncs return `plan` (file → account + album title), `waiting` (with reason), `rejected` (bad input) and short-lived per-account `tokens` for uploading bytes |
 | `POST /v1/uploads` | ✅ | Phone reports `{file_id, account_id, upload_token}`. The backend creates the album if needed, runs `batchCreate` (description = original path), records and verifies. Per-file status: `backed_up`, `already_backed_up`, `account_full`, `failed` or `invalid` |

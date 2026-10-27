@@ -31,6 +31,10 @@ type AccountService interface {
 	CompleteSignIn(ctx context.Context, query url.Values) (ConnectedResponse, error)
 	List(ctx context.Context) ([]AccountResponse, error)
 	MarkFull(ctx context.Context, accountID int64) error
+	// MarkAvailable clears the full flag after the user freed space in that account.
+	MarkAvailable(ctx context.Context, accountID int64) error
+	// MakeCurrent makes the account the one receiving new backups (closes the current period as "manual").
+	MakeCurrent(ctx context.Context, accountID int64) error
 }
 
 type accountService struct {
@@ -155,6 +159,47 @@ func (s *accountService) MarkFull(ctx context.Context, accountID int64) error {
 		logger.FromContext(ctx).Info("account marked full", "account_id", accountID)
 	}
 	return err
+}
+
+func (s *accountService) MarkAvailable(ctx context.Context, accountID int64) error {
+	err := s.repo.MarkAvailable(ctx, s.userID, accountID)
+	if errors.Is(err, repository.ErrNotFound) {
+		return httperror.NewHTTPError(httperror.NOT_FOUND, "unknown account")
+	}
+	if err == nil {
+		logger.FromContext(ctx).Info("account marked available", "account_id", accountID)
+	}
+	return err
+}
+
+func (s *accountService) MakeCurrent(ctx context.Context, accountID int64) error {
+	acct, err := s.repo.AccountOwned(ctx, s.userID, accountID)
+	if errors.Is(err, repository.ErrNotFound) {
+		return httperror.NewHTTPError(httperror.NOT_FOUND, "unknown account")
+	}
+	if err != nil {
+		return err
+	}
+	switch {
+	case !acct.Active:
+		return httperror.NewHTTPError(httperror.CONFLICT, "account is disabled")
+	case acct.FullFlag:
+		return httperror.NewHTTPError(httperror.CONFLICT, "account is full; mark it available first")
+	}
+	accts, err := s.repo.PlannerAccounts(ctx, s.userID)
+	if err != nil {
+		return err
+	}
+	for _, a := range accts {
+		if a.ID == accountID && a.IsCurrent {
+			return nil // already current: nothing to record
+		}
+	}
+	if err := s.repo.SwitchCurrent(ctx, s.userID, accountID, string(enum.PERIOD_END_MANUAL)); err != nil {
+		return err
+	}
+	logger.FromContext(ctx).Info("current account switched", "account_id", accountID, "reason", enum.PERIOD_END_MANUAL)
+	return nil
 }
 
 // PeriodsOf picks one account's active periods out of the owner's list.

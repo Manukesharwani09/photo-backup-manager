@@ -33,6 +33,8 @@ func NewRouter(svcs application.Services) http.Handler {
 
 	mux.HandleFunc("GET /v1/accounts", handle(accountCtrl.List))
 	mux.HandleFunc("POST /v1/accounts/{id}/full", handle(accountCtrl.MarkFull))
+	mux.HandleFunc("POST /v1/accounts/{id}/available", handle(accountCtrl.MarkAvailable))
+	mux.HandleFunc("POST /v1/accounts/{id}/current", handle(accountCtrl.MakeCurrent))
 
 	mux.HandleFunc("POST /v1/devices", handle(backupCtrl.CreateDevice))
 	mux.HandleFunc("POST /v1/sync", handle(backupCtrl.Sync))

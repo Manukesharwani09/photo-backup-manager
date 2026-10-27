@@ -227,6 +227,15 @@ func (s *Store) MarkFull(ctx context.Context, userID, accountID int64) error {
 	return err
 }
 
+// MarkAvailable clears the full flag (the user freed space in that account). ErrNotFound if it isn't the user's.
+func (s *Store) MarkAvailable(ctx context.Context, userID, accountID int64) error {
+	tag, err := s.Pool.Exec(ctx, `UPDATE account SET full_flag = FALSE WHERE id = $1 AND user_id = $2`, accountID, userID)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
 // AccountOwned returns the account if it belongs to the user.
 func (s *Store) AccountOwned(ctx context.Context, userID, accountID int64) (Account, error) {
 	var a Account

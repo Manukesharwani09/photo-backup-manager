@@ -1,4 +1,4 @@
-package api
+package appserver
 
 import (
 	"bytes"
@@ -17,6 +17,9 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application/backup"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application/rule"
 	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
 	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/crypto"
 	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
@@ -49,7 +52,7 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 		f.mu.Lock()
 		f.nextID++
 		id := fmt.Sprintf("album%d", f.nextID)
-		f.albums[id] = account(r) + "|" + in.Album.Title
+		f.albums[id] = callerAccount(r) + "|" + in.Album.Title
 		f.mu.Unlock()
 		json.NewEncoder(w).Encode(map[string]string{"id": id, "productUrl": "https://photos.google.com/album/" + id})
 	})
@@ -65,7 +68,7 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		f.batchCalls++
-		acct := account(r)
+		acct := callerAccount(r)
 		var res []map[string]any
 		for _, it := range in.NewMediaItems {
 			tok := it.SimpleMediaItem.UploadToken
@@ -128,7 +131,7 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 	return f
 }
 
-func account(r *http.Request) string {
+func callerAccount(r *http.Request) string {
 	return strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer at:")
 }
 
@@ -171,13 +174,13 @@ func setup(t *testing.T) *env {
 	}
 	o, _ := st.UpsertAccount(ctx, uid, "overflow@gmail.com", "", "overflow", enc("rtB"))
 
-	s := &Server{Store: st, TokenKey: key, UserID: uid, OAuth: &oauth2.Config{ClientID: "c", ClientSecret: "s",
-		Endpoint: oauth2.Endpoint{TokenURL: g.srv.URL + "/token", AuthStyle: oauth2.AuthStyleInParams}}}
-	e := &env{t: t, h: s.Routes(), st: st, g: g, primary: p, over: o}
+	svcs := application.NewServices(application.Deps{Repo: st, TokenKey: key, UserID: uid, OAuth: &oauth2.Config{ClientID: "c", ClientSecret: "s",
+		Endpoint: oauth2.Endpoint{TokenURL: g.srv.URL + "/token", AuthStyle: oauth2.AuthStyleInParams}}})
+	e := &env{t: t, h: NewRouter(svcs), st: st, g: g, primary: p, over: o}
 	var dev struct {
 		DeviceID int64 `json:"device_id"`
 	}
-	e.call("POST", "/devices", map[string]string{"model": "test"}, http.StatusCreated, &dev)
+	e.call("POST", "/v1/devices", map[string]string{"model": "test"}, http.StatusCreated, &dev)
 	e.device = dev.DeviceID
 	return e
 }
@@ -198,23 +201,23 @@ func (e *env) call(method, path string, body any, wantStatus int, out any) strin
 	return rec.Body.String()
 }
 
-func file(folder, name, content string) syncFile {
+func file(folder, name, content string) backup.SyncFile {
 	sum := sha256.Sum256([]byte(content))
-	return syncFile{RelativePath: folder, DisplayName: name, Size: int64(len(content)), SHA256: hex.EncodeToString(sum[:]), Source: "camera"}
+	return backup.SyncFile{RelativePath: folder, DisplayName: name, Size: int64(len(content)), SHA256: hex.EncodeToString(sum[:]), Source: "camera"}
 }
 
-func (e *env) sync(files ...syncFile) syncResponse {
+func (e *env) sync(files ...backup.SyncFile) backup.SyncResponse {
 	e.t.Helper()
-	var out syncResponse
-	e.call("POST", "/sync", map[string]any{"device_id": e.device, "files": files}, http.StatusOK, &out)
+	var out backup.SyncResponse
+	e.call("POST", "/v1/sync", map[string]any{"device_id": e.device, "files": files}, http.StatusOK, &out)
 	return out
 }
 
-func (e *env) upload(items ...uploadItem) map[int64]uploadResult {
+func (e *env) upload(items ...backup.UploadItem) map[int64]backup.UploadResult {
 	e.t.Helper()
-	var out struct{ Results []uploadResult }
-	e.call("POST", "/uploads", map[string]any{"device_id": e.device, "items": items}, http.StatusOK, &out)
-	m := map[int64]uploadResult{}
+	var out struct{ Results []backup.UploadResult }
+	e.call("POST", "/v1/uploads", map[string]any{"device_id": e.device, "items": items}, http.StatusOK, &out)
+	m := map[int64]backup.UploadResult{}
 	for _, r := range out.Results {
 		m[r.FileID] = r
 	}
@@ -222,10 +225,10 @@ func (e *env) upload(items ...uploadItem) map[int64]uploadResult {
 }
 
 // uploadPlan simulates the phone uploading every planned file and reporting tokens.
-func (e *env) uploadPlan(p []planItem) map[int64]uploadResult {
-	var items []uploadItem
+func (e *env) uploadPlan(p []backup.PlanItem) map[int64]backup.UploadResult {
+	var items []backup.UploadItem
 	for _, it := range p {
-		items = append(items, uploadItem{FileID: it.FileID, AccountID: it.AccountID, UploadToken: fmt.Sprintf("tok-%d", it.FileID)})
+		items = append(items, backup.UploadItem{FileID: it.FileID, AccountID: it.AccountID, UploadToken: fmt.Sprintf("tok-%d", it.FileID)})
 	}
 	return e.upload(items...)
 }
@@ -239,7 +242,7 @@ func (e *env) scalar(q string, args ...any) int {
 	return n
 }
 
-func planFor(p []planItem, name string) *planItem {
+func planFor(p []backup.PlanItem, name string) *backup.PlanItem {
 	for i := range p {
 		if p[i].DisplayName == name {
 			return &p[i]
@@ -259,7 +262,7 @@ func TestFullBackupFlow(t *testing.T) {
 	}
 
 	// Rules: Documents -> primary, protected; Private excluded.
-	e.call("PUT", "/rules", []ruleJSON{
+	e.call("PUT", "/v1/rules", []rule.RuleDTO{
 		{PathGlob: "Documents", TargetAccountID: &e.primary, Cleanup: "protected"},
 		{PathGlob: "Private", Backup: "exclude"},
 	}, http.StatusOK, nil)
@@ -311,13 +314,13 @@ func TestFullBackupFlow(t *testing.T) {
 		t.Fatalf("re-sync: counts %v plan %+v", r.Counts, r.Plan)
 	}
 	// Uploading an already-backed-up file again is refused.
-	again := e.upload(uploadItem{FileID: pc.FileID, AccountID: e.primary, UploadToken: "tok-again"})
+	again := e.upload(backup.UploadItem{FileID: pc.FileID, AccountID: e.primary, UploadToken: "tok-again"})
 	if again[pc.FileID].Status != "already_backed_up" {
 		t.Fatalf("re-upload: %+v", again[pc.FileID])
 	}
 
 	// 4. Primary is full: new camera photos go to overflow (period switches), but Documents wait.
-	e.call("POST", fmt.Sprintf("/accounts/%d/full", e.primary), nil, http.StatusOK, nil)
+	e.call("POST", fmt.Sprintf("/v1/accounts/%d/full", e.primary), nil, http.StatusOK, nil)
 	newG := file("DCIM/Camera", "g.jpg", "G")
 	docH := file("Documents/Bills", "h.jpg", "H")
 	r = e.sync(newG, docH)
@@ -342,7 +345,7 @@ func TestFullBackupFlow(t *testing.T) {
 	}
 
 	// 5. Every account full: new non-rule photos wait with a reason.
-	e.call("POST", fmt.Sprintf("/accounts/%d/full", e.over), nil, http.StatusOK, nil)
+	e.call("POST", fmt.Sprintf("/v1/accounts/%d/full", e.over), nil, http.StatusOK, nil)
 	r = e.sync(file("DCIM/Camera", "i.jpg", "I"))
 	if len(r.Plan) != 0 || len(r.Waiting) != 1 || r.Waiting[0].Reason != "no_account_available" {
 		t.Fatalf("all full: %+v", r)
@@ -380,10 +383,10 @@ func TestUploadEdgeCases(t *testing.T) {
 	r := e.sync(file("DCIM", "a.jpg", "A"), file("DCIM", "b.jpg", "B"))
 	a, b := planFor(r.Plan, "a.jpg"), planFor(r.Plan, "b.jpg")
 	res := e.upload(
-		uploadItem{FileID: a.FileID, AccountID: e.primary, UploadToken: "bad-token"}, // Google rejects it
-		uploadItem{FileID: b.FileID, AccountID: e.primary, UploadToken: ""},          // empty token
-		uploadItem{FileID: 999999, AccountID: e.primary, UploadToken: "x"},           // not this device's file
-		uploadItem{FileID: a.FileID, AccountID: e.primary, UploadToken: "dup"},       // duplicate entry ignored
+		backup.UploadItem{FileID: a.FileID, AccountID: e.primary, UploadToken: "bad-token"}, // Google rejects it
+		backup.UploadItem{FileID: b.FileID, AccountID: e.primary, UploadToken: ""},          // empty token
+		backup.UploadItem{FileID: 999999, AccountID: e.primary, UploadToken: "x"},           // not this device's file
+		backup.UploadItem{FileID: a.FileID, AccountID: e.primary, UploadToken: "dup"},       // duplicate entry ignored
 	)
 	if res[a.FileID].Status != "failed" || res[b.FileID].Status != "invalid" || res[999999].Status != "invalid" {
 		t.Fatalf("got %+v", res)
@@ -394,7 +397,7 @@ func TestUploadEdgeCases(t *testing.T) {
 		t.Fatalf("expected both planned again: %+v", r.Plan)
 	}
 	// Unknown account id in an upload.
-	res = e.upload(uploadItem{FileID: a.FileID, AccountID: 424242, UploadToken: "t"})
+	res = e.upload(backup.UploadItem{FileID: a.FileID, AccountID: 424242, UploadToken: "t"})
 	if res[a.FileID].Status != "invalid" {
 		t.Fatalf("unknown account: %+v", res[a.FileID])
 	}
@@ -406,13 +409,13 @@ func TestUploadEdgeCases(t *testing.T) {
 func TestSyncValidationAndChangedContent(t *testing.T) {
 	e := setup(t)
 	// Unknown device.
-	e.call("POST", "/sync", map[string]any{"device_id": 777, "files": []syncFile{}}, http.StatusNotFound, nil)
+	e.call("POST", "/v1/sync", map[string]any{"device_id": 777, "files": []backup.SyncFile{}}, http.StatusNotFound, nil)
 	// Unknown JSON field is rejected (catches app/backend contract drift).
-	e.call("POST", "/sync", map[string]any{"device_id": e.device, "bogus": 1}, http.StatusBadRequest, nil)
+	e.call("POST", "/v1/sync", map[string]any{"device_id": e.device, "bogus": 1}, http.StatusBadRequest, nil)
 
 	old := file("DCIM", "x.jpg", "v1")
 	e.sync(old) // start point
-	bad := []syncFile{
+	bad := []backup.SyncFile{
 		{RelativePath: "DCIM", DisplayName: "short.jpg", SHA256: "abc"},
 		{RelativePath: "DCIM", DisplayName: "", SHA256: old.SHA256},
 		{RelativePath: "DCIM", DisplayName: "src.jpg", SHA256: old.SHA256, Source: "telepathy"},
@@ -443,16 +446,16 @@ func TestRulesValidation(t *testing.T) {
 	e := setup(t)
 	bad := 999
 	acct := int64(bad)
-	e.call("PUT", "/rules", []ruleJSON{{PathGlob: ""}}, http.StatusBadRequest, nil)
-	e.call("PUT", "/rules", []ruleJSON{{PathGlob: "A", Backup: "maybe"}}, http.StatusBadRequest, nil)
-	e.call("PUT", "/rules", []ruleJSON{{PathGlob: "A", TargetAccountID: &acct}}, http.StatusBadRequest, nil)
-	var got []ruleJSON
-	e.call("PUT", "/rules", []ruleJSON{{PathGlob: "/Documents/"}}, http.StatusOK, &got)
+	e.call("PUT", "/v1/rules", []rule.RuleDTO{{PathGlob: ""}}, http.StatusBadRequest, nil)
+	e.call("PUT", "/v1/rules", []rule.RuleDTO{{PathGlob: "A", Backup: "maybe"}}, http.StatusBadRequest, nil)
+	e.call("PUT", "/v1/rules", []rule.RuleDTO{{PathGlob: "A", TargetAccountID: &acct}}, http.StatusBadRequest, nil)
+	var got []rule.RuleDTO
+	e.call("PUT", "/v1/rules", []rule.RuleDTO{{PathGlob: "/Documents/"}}, http.StatusOK, &got)
 	if len(got) != 1 || got[0].PathGlob != "Documents" || got[0].Backup != "include" || got[0].Cleanup != "allowed" {
 		t.Fatalf("defaults/normalisation: %+v", got)
 	}
-	e.call("POST", "/accounts/abc/full", nil, http.StatusBadRequest, nil)
-	e.call("POST", "/accounts/424242/full", nil, http.StatusNotFound, nil)
+	e.call("POST", "/v1/accounts/abc/full", nil, http.StatusBadRequest, nil)
+	e.call("POST", "/v1/accounts/424242/full", nil, http.StatusNotFound, nil)
 	io.Discard.Write(nil)
 }
 

@@ -1,12 +1,16 @@
-package api
+package appserver
 
 import (
 	"net/http"
 	"testing"
+
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application/backup"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application/cleanup"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application/rule"
 )
 
 type cleanupResp struct {
-	Eligible   []cleanupFile
+	Eligible   []cleanup.File
 	TotalBytes int64 `json:"total_bytes"`
 	Kept       map[string]int
 }
@@ -14,11 +18,11 @@ type cleanupResp struct {
 func (e *env) cleanupPlan(folders ...string) cleanupResp {
 	e.t.Helper()
 	var out cleanupResp
-	e.call("POST", "/cleanup/plan", map[string]any{"device_id": e.device, "folders": folders}, http.StatusOK, &out)
+	e.call("POST", "/v1/cleanup/plan", map[string]any{"device_id": e.device, "folders": folders}, http.StatusOK, &out)
 	return out
 }
 
-func names(fs []cleanupFile) map[string]bool {
+func names(fs []cleanup.File) map[string]bool {
 	m := map[string]bool{}
 	for _, f := range fs {
 		m[f.RelativePath+"/"+f.DisplayName] = true
@@ -30,7 +34,7 @@ func TestCleanupPlanOnlyVerifiedUnprotected(t *testing.T) {
 	e := setup(t)
 	startPoint := file("DCIM/Camera", "old.jpg", "OLD")
 	e.sync(startPoint)
-	e.call("PUT", "/rules", []ruleJSON{
+	e.call("PUT", "/v1/rules", []rule.RuleDTO{
 		{PathGlob: "DCIM/Camera/Docs", Cleanup: "protected"},
 		{PathGlob: "DCIM/Private", Backup: "exclude"},
 	}, http.StatusOK, nil)
@@ -41,7 +45,7 @@ func TestCleanupPlanOnlyVerifiedUnprotected(t *testing.T) {
 	excludedF := file("DCIM/Private", "x.jpg", "X")        // excluded
 	other := file("Pictures", "p.jpg", "P")                // verified, outside the chosen folder
 	r := e.sync(startPoint, up, protectedF, pendingF, excludedF, other)
-	var toUpload []planItem
+	var toUpload []backup.PlanItem
 	for _, p := range r.Plan {
 		if p.DisplayName != "pending.jpg" {
 			toUpload = append(toUpload, p)
@@ -70,7 +74,7 @@ func TestCleanupPlanOnlyVerifiedUnprotected(t *testing.T) {
 			pendingID = p.FileID
 		}
 	}
-	e.call("POST", "/cleanup/done", map[string]any{"device_id": e.device, "file_ids": []int64{upID, pendingID, 999999}}, http.StatusOK, &done)
+	e.call("POST", "/v1/cleanup/done", map[string]any{"device_id": e.device, "file_ids": []int64{upID, pendingID, 999999}}, http.StatusOK, &done)
 	if done["marked_removed"] != 1 || done["ignored"] != 2 {
 		t.Fatalf("done: %v", done)
 	}
@@ -96,7 +100,7 @@ func TestCleanupUnverifiedIsKept(t *testing.T) {
 		t.Fatalf("unverified backup must not be cleaned: %+v", got)
 	}
 	var done map[string]int64
-	e.call("POST", "/cleanup/done", map[string]any{"device_id": e.device, "file_ids": []int64{r.Plan[0].FileID}}, http.StatusOK, &done)
+	e.call("POST", "/v1/cleanup/done", map[string]any{"device_id": e.device, "file_ids": []int64{r.Plan[0].FileID}}, http.StatusOK, &done)
 	if done["marked_removed"] != 0 {
 		t.Fatalf("unverified file marked removed: %v", done)
 	}
@@ -104,7 +108,7 @@ func TestCleanupUnverifiedIsKept(t *testing.T) {
 
 func TestCleanupValidation(t *testing.T) {
 	e := setup(t)
-	e.call("POST", "/cleanup/plan", map[string]any{"device_id": e.device, "folders": []string{}}, http.StatusBadRequest, nil)
-	e.call("POST", "/cleanup/plan", map[string]any{"device_id": 4242, "folders": []string{"DCIM"}}, http.StatusNotFound, nil)
-	e.call("POST", "/cleanup/done", map[string]any{"device_id": 4242, "file_ids": []int64{1}}, http.StatusNotFound, nil)
+	e.call("POST", "/v1/cleanup/plan", map[string]any{"device_id": e.device, "folders": []string{}}, http.StatusBadRequest, nil)
+	e.call("POST", "/v1/cleanup/plan", map[string]any{"device_id": 4242, "folders": []string{"DCIM"}}, http.StatusNotFound, nil)
+	e.call("POST", "/v1/cleanup/done", map[string]any{"device_id": 4242, "file_ids": []int64{1}}, http.StatusNotFound, nil)
 }

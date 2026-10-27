@@ -22,7 +22,7 @@ Only the phone can see and touch the photo files. Everything else, including the
 ## Upload flow (end to end)
 ```
  App                              Backend                         Google Photos
-  │ 1. POST /sync  (new files:       │                                 │
+  │ 1. POST /v1/sync (new files:     │                                 │
   │    path, size, date, sha256)    │                                 │
   │ ───────────────────────────────▶│ 2. check registry + rules       │
   │                                  │    → plan: file X → acct B,     │
@@ -30,7 +30,7 @@ Only the phone can see and touch the photo files. Everything else, including the
   │    + short-lived token (acct B) │                                 │
   │ 3. upload bytes ─────────────────────────────────────────────────▶│
   │ ◀──────────────────────────────────────────────── uploadToken ─── │
-  │ 4. POST /uploads (sha256, token)│                                 │
+  │ 4. POST /v1/uploads (token)     │                                 │
   │ ───────────────────────────────▶│ 5. batchCreate (+description,   │
   │                                  │    album) ─────────────────────▶│
   │                                  │ ◀────────── mediaItemId ─────── │
@@ -40,7 +40,7 @@ Only the phone can see and touch the photo files. Everything else, including the
 - If the app dies after step 3, the backend has no record yet, so the file stays pending and is simply sent again. If it dies after step 4, the backend completes steps 5–6 on its own.
 
 ## Data model (backend DB)
-**The source of truth is `internal/store/migrations/*.sql`.** The sketch below is the design view. In the SQL:
+**The source of truth is `migrations/*.up.sql` (with matching `.down.sql`); see [data-model.md](data-model.md).** The sketch below is the design view. In the SQL:
 - `user` is named `app_user` (`user` is reserved in Postgres), and `sha256` is stored as `BYTEA`.
 - Migration 002 adds a unique index allowing **only one live backup per media**.
 - Migration 003 adds `album.product_url` and `backup_record.marked_for_delete_at`.
@@ -122,16 +122,16 @@ Account B   active 15 Jun 2026 → now
 - **A Google API error** is reported and that chunk is skipped. It is **never** treated as a deletion.
 - **Quota cost:** about 1 request per 50 backed-up photos per run.
 
-**Similar photos + "🗑 To delete" album (`GET /similar`, `POST /cloud/to-delete`):**
+**Similar photos + "🗑 To delete" album (`GET /v1/similar`, `POST /v1/cloud/to-delete`):**
 - The phone may send a 64-bit perceptual hash (`phash`) per file.
 - The backend groups photos whose hashes differ by ≤ 6 bits, or which share name, date taken and dimensions (`plan.SimilarGroups`). Grouping is transitive. Comparison is O(n²) for now; it needs bucketing before libraries reach tens of thousands of photos.
 - Each group lists every copy with its paths, phone file ids (for local deletion), account and Google link.
-- **Cloud copies:** `POST /cloud/to-delete` adds them to one "🗑 To delete" album per account (created once and reused) and marks them. The user opens the album in Google Photos, selects all and deletes. The cloud check then records them as `deleted_in_cloud`.
+- **Cloud copies:** `POST /v1/cloud/to-delete` adds them to one "🗑 To delete" album per account (created once and reused) and marks them. The user opens the album in Google Photos, selects all and deletes. The cloud check then records them as `deleted_in_cloud`.
 - **The API can't delete albums either**, so the emptied album stays and is reused next time.
 
 **Selective cleanup:** the app requests a cleanup plan for the chosen folders. The backend returns the files that are `verified`, in folders with `cleanup = allowed`, and not protected. The app shows a preview, the user confirms, the app deletes, then reports back with `present_on_device = false`.
 
-**Restore folder (first version, `POST /restore/plan` + `/restore/done`):**
+**Restore folder (first version, `POST /v1/restore/plan` + `/v1/restore/done`):**
 1. You pick a folder. Sub-folders are included, and the photos may come from any of your phones.
 2. The backend fetches fresh `baseUrl`s for that folder's items from every account. The links expire after about 60 minutes, so they're fetched just before download. Files the device already has are skipped. Items deleted in Google are listed as `missing_in_google`.
 3. It returns them with the original paths, GPS and per-account access tokens.
@@ -142,28 +142,28 @@ Account B   active 15 Jun 2026 → now
 Media downloads have their own quota of 75k per day.
 
 ## Backend API
-Status: ✅ built · ⬜ planned. The live list is in `internal/api/` (routes are registered in `Server.Routes`).
+Status: ✅ built · ⬜ planned. The live list is `internal/infrastructure/appserver/routes.go` (`NewRouter`). Everything except `/oauth/*` is under **`/v1`**; failures return a plain-text message with the status, plus an `X-Correlation-ID` header (send your own to trace a request).
 
 | Endpoint | Status | Purpose |
 |---|---|---|
 | `GET /oauth/start?role=primary\|overflow` | ✅ | Start Google sign-in for one account (redirects to Google) |
 | `GET /oauth/callback` | ✅ | Google redirects here. The backend stores the encrypted refresh token and opens an `account_period` for the first account. Rejects: forged/expired state (400), unticked permissions (400), a second primary account (409) |
-| `GET /accounts` | ✅ | Accounts, roles, full flag, active periods, live remaining storage |
-| `POST /accounts/{id}/full` | ✅ | Mark an account full; the next sync moves new photos to the next account |
-| `POST /devices` | ✅ | Register a phone → `device_id` |
-| `POST /sync` | ✅ | Phone sends its file list (path, name, size, sha256, optional date/size/GPS/source). The first sync records the start point (`existing_skip`). Later syncs return `plan` (file → account + album title), `waiting` (with reason), `rejected` (bad input) and short-lived per-account `tokens` for uploading bytes |
-| `POST /uploads` | ✅ | Phone reports `{file_id, account_id, upload_token}`. The backend creates the album if needed, runs `batchCreate` (description = original path), records and verifies. Per-file status: `backed_up`, `already_backed_up`, `account_full`, `failed` or `invalid` |
-| `GET /rules`, `PUT /rules` | ✅ | Folder rules `{path, target_account_id, backup, cleanup, priority}`. PUT replaces the whole set |
+| `GET /v1/accounts` | ✅ | Accounts, roles, full flag, active periods, live remaining storage |
+| `POST /v1/accounts/{id}/full` | ✅ | Mark an account full; the next sync moves new photos to the next account |
+| `POST /v1/devices` | ✅ | Register a phone → `device_id` |
+| `POST /v1/sync` | ✅ | Phone sends its file list (path, name, size, sha256, optional date/size/GPS/source). The first sync records the start point (`existing_skip`). Later syncs return `plan` (file → account + album title), `waiting` (with reason), `rejected` (bad input) and short-lived per-account `tokens` for uploading bytes |
+| `POST /v1/uploads` | ✅ | Phone reports `{file_id, account_id, upload_token}`. The backend creates the album if needed, runs `batchCreate` (description = original path), records and verifies. Per-file status: `backed_up`, `already_backed_up`, `account_full`, `failed` or `invalid` |
+| `GET /v1/rules`, `PUT /v1/rules` | ✅ | Folder rules `{path, target_account_id, backup, cleanup, priority}`. PUT replaces the whole set |
 
-| `POST /cleanup/plan` | ✅ | `{device_id, folders}` → safely deletable phone files (verified, not protected, still on the phone) + total size + `kept` counts by reason (`protected`, `not_backed_up`, `not_verified`) |
-| `POST /cleanup/done` | ✅ | `{device_id, file_ids}`: files the phone actually deleted. Only verified backups are accepted |
-| `POST /restore/plan` | ✅ | `{device_id, folder}` → download links, paths, GPS, tokens; `already_on_device`, `missing_in_google` |
-| `POST /restore/done` | ✅ | `{device_id, items:[{media_id, relative_path, display_name, size, sha256}]}`: links the restored bytes to the original backup |
-| `GET /similar` | ✅ | Groups of look-alike photos (`looks_alike` / `same_name_and_date`), with every copy's location |
-| `POST /cloud/to-delete` | ✅ | `{media_ids}` → adds their cloud copies to each account's "🗑 To delete" album; returns per-account album link and waiting count |
-| `POST /cloud/check` | ✅ | Runs the cloud check now (it also runs on a schedule) |
-| `GET /dashboard` | ✅ | Per account: role, current?, full, free storage, active periods, item count, photo-date range, folders, last upload, To delete waiting. Plus phone file counts by state, and alerts (`account_full`, `no_account_available`, `to_delete_waiting`, `account_unreachable`) |
-| `GET /photos/where?month=YYYY-MM` or `?from=&to=` | ✅ | Which accounts hold photos taken in that period (end date inclusive), plus the count of undated backups |
+| `POST /v1/cleanup/plan` | ✅ | `{device_id, folders}` → safely deletable phone files (verified, not protected, still on the phone) + total size + `kept` counts by reason (`protected`, `not_backed_up`, `not_verified`) |
+| `POST /v1/cleanup/done` | ✅ | `{device_id, file_ids}`: files the phone actually deleted. Only verified backups are accepted |
+| `POST /v1/restore/plan` | ✅ | `{device_id, folder}` → download links, paths, GPS, tokens; `already_on_device`, `missing_in_google` |
+| `POST /v1/restore/done` | ✅ | `{device_id, items:[{media_id, relative_path, display_name, size, sha256}]}`: links the restored bytes to the original backup |
+| `GET /v1/similar` | ✅ | Groups of look-alike photos (`looks_alike` / `same_name_and_date`), with every copy's location |
+| `POST /v1/cloud/to-delete` | ✅ | `{media_ids}` → adds their cloud copies to each account's "🗑 To delete" album; returns per-account album link and waiting count |
+| `POST /v1/cloud/check` | ✅ | Runs the cloud check now (it also runs on a schedule) |
+| `GET /v1/dashboard` | ✅ | Per account: role, current?, full, free storage, active periods, item count, photo-date range, folders, last upload, To delete waiting. Plus phone file counts by state, and alerts (`account_full`, `no_account_available`, `to_delete_waiting`, `account_unreachable`) |
+| `GET /v1/photos/where?month=YYYY-MM` or `?from=&to=` | ✅ | Which accounts hold photos taken in that period (end date inclusive), plus the count of undated backups |
 
 ## Points to note
 - **We hold users' Google tokens.** Encrypt them at rest. That's fine for personal use, and it is a privacy-policy item if published.

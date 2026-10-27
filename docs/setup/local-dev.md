@@ -16,17 +16,21 @@ See [../architecture/code-layout.md](../architecture/code-layout.md#environment-
 
 ## Build & run
 ```bash
-gofmt -l . && go vet ./... && go build -o bin/server ./cmd/server
-./bin/server                 # reads ./.env, migrates the DB, listens on http://localhost:8080
+make help                    # all targets
+make run                     # = go run ./cmd appserver: reads ./.env, migrates, serves http://localhost:8080
+make build && ./bin/server appserver
+make migrate                 # apply migrations only
+make rollback n=1            # revert the newest migration
+make check                   # gofmt + vet + all tests: run before committing
 ```
 Migrations run automatically on every start.
 
 ## Tests
 ```bash
 createdb photobackup_test   # once; disposable, every DB test wipes it
-TEST_DATABASE_URL='postgres:///photobackup_test?host=/var/run/postgresql' go test -count=1 -p 1 ./...
+make test                   # = TEST_DATABASE_URL=…/photobackup_test go test -count=1 -p 1 ./...
 ```
-`-p 1` matters: the `store` and `api` packages share the test DB, so they must not run in parallel. Without `TEST_DATABASE_URL`, the DB tests in `internal/store` and `internal/api` are skipped, and the rest still run. **Never point `TEST_DATABASE_URL` at `photobackup`.**
+`-p 1` matters: the `repository` and `appserver` packages share the test DB, so they must not run in parallel. Without `TEST_DATABASE_URL`, the DB tests in `internal/infrastructure/repository` and `internal/infrastructure/appserver` are skipped, and the rest still run. **Never point `TEST_DATABASE_URL` at `photobackup`.**
 
 ## Connect Google accounts
 Open these in a browser where the account is signed in:
@@ -39,7 +43,7 @@ Notes:
 - **Only test users can sign in.** They're listed in [google-cloud.md](google-cloud.md).
 - **Refresh tokens expire after 7 days in Testing mode.** Reconnect the same way.
 
-Check the result: `curl -s http://localhost:8080/accounts`
+Check the result: `curl -s http://localhost:8080/v1/accounts`
 
 ## Inspect the DB
 ```bash

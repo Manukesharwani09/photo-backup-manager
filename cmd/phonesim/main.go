@@ -73,7 +73,7 @@ func main() {
 			Expiry      time.Time `json:"expiry"`
 		} `json:"tokens"`
 	}
-	if err := post(*server+"/sync", map[string]any{"device_id": deviceID, "files": files}, &plan); err != nil {
+	if err := post(*server+"/v1/sync", map[string]any{"device_id": deviceID, "files": files}, &plan); err != nil {
 		log.Fatalf("sync: %v", err)
 	}
 	fmt.Printf("sync: first_scan=%v counts=%v planned=%d waiting=%d rejected=%d\n",
@@ -114,7 +114,7 @@ func main() {
 	var done struct {
 		Results []map[string]any `json:"results"`
 	}
-	if err := post(*server+"/uploads", map[string]any{"device_id": deviceID, "items": items}, &done); err != nil {
+	if err := post(*server+"/v1/uploads", map[string]any{"device_id": deviceID, "items": items}, &done); err != nil {
 		log.Fatalf("uploads: %v", err)
 	}
 	for _, r := range done.Results {
@@ -141,7 +141,7 @@ func restoreFolder(ctx context.Context, server string, deviceID int64, folder, d
 			AccessToken string `json:"access_token"`
 		} `json:"tokens"`
 	}
-	if err := post(server+"/restore/plan", map[string]any{"device_id": deviceID, "folder": folder}, &plan); err != nil {
+	if err := post(server+"/v1/restore/plan", map[string]any{"device_id": deviceID, "folder": folder}, &plan); err != nil {
 		return err
 	}
 	fmt.Printf("restore %s: %d to download, %d already on device, %d missing in Google\n",
@@ -176,7 +176,7 @@ func restoreFolder(ctx context.Context, server string, deviceID int64, folder, d
 			"display_name": it.DisplayName, "size": len(data), "sha256": hex.EncodeToString(sum[:])})
 	}
 	var res map[string]any
-	if err := post(server+"/restore/done", map[string]any{"device_id": deviceID, "items": done}, &res); err != nil {
+	if err := post(server+"/v1/restore/done", map[string]any{"device_id": deviceID, "items": done}, &res); err != nil {
 		return err
 	}
 	fmt.Printf("restore done: %v\n", res)
@@ -273,7 +273,7 @@ func loadOrRegister(server, statePath string) (int64, error) {
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return 0, err
 	}
-	if err := post(server+"/devices", map[string]string{"model": "phonesim"}, &st); err != nil {
+	if err := post(server+"/v1/devices", map[string]string{"model": "phonesim"}, &st); err != nil {
 		return 0, err
 	}
 	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {

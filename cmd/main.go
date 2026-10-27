@@ -14,9 +14,11 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/Manukesharwani09/photo-backup-manager/internal/api"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application"
 	"github.com/Manukesharwani09/photo-backup-manager/internal/config"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/appserver"
 	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/client/google"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/logger"
 	"github.com/Manukesharwani09/photo-backup-manager/internal/infrastructure/repository"
 )
 
@@ -82,13 +84,14 @@ func runAppServer(ctx context.Context, cfg config.Config, st *repository.Store) 
 	if err != nil {
 		log.Fatalf("default user: %v", err)
 	}
-	srv := &api.Server{
-		Store:    st,
+	svcs := application.NewServices(application.Deps{
+		Repo:     st,
 		OAuth:    google.OAuthConfig(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL),
 		TokenKey: cfg.TokenKey,
 		UserID:   userID,
-	}
-	go srv.RunCloudChecks(ctx, cfg.CloudCheckInterval)
-	log.Printf("listening on http://%s  (connect an account: http://%s/oauth/start?role=primary)", cfg.ListenAddr, cfg.ListenAddr)
-	log.Fatal(http.ListenAndServe(cfg.ListenAddr, srv.Routes()))
+	})
+	go svcs.CloudCheck.Run(ctx, cfg.CloudCheckInterval)
+	logger.GetLogger().Info("listening", "addr", "http://"+cfg.ListenAddr,
+		"connect_account", "http://"+cfg.ListenAddr+"/oauth/start?role=primary")
+	log.Fatal(http.ListenAndServe(cfg.ListenAddr, appserver.NewRouter(svcs)))
 }

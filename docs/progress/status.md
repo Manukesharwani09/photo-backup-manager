@@ -14,7 +14,7 @@ Legend: ✅ done · 🟡 built, not yet verified · ⬜ not started
 | 0b | Go skeleton, DB schema (9 tables), migrations, config, token encryption | ✅ | [../architecture/code-layout.md](../architecture/code-layout.md) |
 | 1 | **OAuth:** connect 2 accounts (primary + overflow), store encrypted refresh tokens, open `account_period` | ✅ | Verified 2026-10-24 with real accounts: `mkesharwani125@gmail.com` (primary, id 1, period open) and `tanyamishra12346789@gmail.com` (overflow, id 2). Tokens stored encrypted |
 | 13 | **Remaining space** per account (Drive `storageQuota`) | ✅ | Verified: `drive.file` is enough. Primary 12.08 GB free of 15 GB; overflow 14.96 GB free |
-| 2 | **Sync:** stand-in phone sends metadata + SHA-256; backend returns an upload plan | ✅ | `POST /devices`, `POST /sync`; `cmd/phonesim` is the stand-in phone. Live run 2026-10-24 |
+| 2 | **Sync:** stand-in phone sends metadata + SHA-256; backend returns an upload plan | ✅ | `POST /v1/devices`, `POST /v1/sync`; `cmd/phonesim` is the stand-in phone. Live run 2026-10-24 |
 | 3 | **Split upload:** phone uploads bytes with a backend-issued access token; backend runs `batchCreate` | ✅ | **A2 verified with real Google:** 3 photos uploaded to `mkesharwani125` and verified. `POST /uploads` |
 | 4 | **Albums + descriptions:** one album per folder (`DCIM › Camera`); description = original path | ✅ | Live: albums `DCIM › Camera` and `Documents › Bills` created. Whether search finds the description is still A4 |
 | 5 | **Verify** uploaded items (`mediaItems.get`) | ✅ | `mediaItems:batchGet` right after creating; live records are `verified` |
@@ -25,8 +25,9 @@ Legend: ✅ done · 🟡 built, not yet verified · ⬜ not started
 | 10 | **Restore:** download an album into the original paths; write GPS back; link the new hash | ✅ | Live: restored `DCIM` to a second simulated phone from real Google; both files linked, no re-upload. **A3 verified: Google strips GPS and changes the bytes on download.** GPS write-back is the app's job (phonesim doesn't parse EXIF) |
 | 11 | **Similar photos:** a re-compressed copy is uploaded and grouped with the original | ✅ (tests) | `GET /similar`. Tested with a fake Google. Live data has no `phash` yet (phonesim doesn't compute one), so live grouping isn't exercised |
 | 12 | **"To delete" album** + scheduled cloud check marks `deleted_in_cloud` | ✅ | Live: the "🗑 To delete" album was created in `mkesharwani125` and a test photo added (the `edit.appcreateddata` scope works). The cloud check confirmed 5/5 records present. Deletion handling is tested with a fake Google. **Correction: albums can't be deleted via the API**, so the emptied album stays and is reused |
+| 17 | **Code structure** (Horizon-style layers, typed enums, versioned up/down migrations, audit columns, soft delete, `/v1` API, structured logs with masked emails + correlation ids) | ✅ | See [../architecture/code-layout.md](../architecture/code-layout.md). All tests pass; live smoke test OK |
 | 16 | **Account ownership:** 1 primary + N overflow per owner; a linked Google account can't be linked by another owner | ✅ | Enforced by the DB (migration 004) and tested. See [../architecture/data-model.md](../architecture/data-model.md) |
-| 15 | **Dashboard + photos by date** (problem #2) | ✅ | `GET /dashboard`, `GET /photos/where`. Live: 3 items in primary, 1 waiting in To delete, alert shown |
+| 15 | **Dashboard + photos by date** (problem #2) | ✅ | `GET /v1/dashboard`, `GET /v1/photos/where`. Live: 3 items in primary, 1 waiting in To delete, alert shown |
 | 14 | Remaining checks: description search, motion/HEIC, account-full error | ⬜ | A4–A6. A4 and A5 need a real phone or manual checks in Google Photos; A6 needs a nearly full account |
 
 If every row reaches ✅, the backend side is proven, and the Android app becomes ordinary work: MediaStore scan, hashing, WorkManager, delete requests and UI.
@@ -65,7 +66,7 @@ The backend proof of concept covers every requirement (rows 0–13 and 15). Rema
 3. The Android app can start against the API above. See [../app/design-brief.md](../app/design-brief.md).
 
 ## Environment snapshot
-- Server: `./bin/server` on `http://localhost:8080` (local, run manually).
+- Server: `make run` (or `./bin/server appserver`) on `http://localhost:8080`, API under `/v1`.
 - DB: local Postgres 18, database `photobackup`.
 - Live test data: `testdata/phone` = device 1, `testdata/newphone` = device 2 (restore test). Both are git-ignored.
 - In `mkesharwani125`'s Google Photos: 3 test photos in albums `DCIM › Camera` and `Documents › Bills`, plus a "🗑 To delete" album holding one of them. All can be deleted by hand.

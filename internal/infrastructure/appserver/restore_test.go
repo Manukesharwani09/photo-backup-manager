@@ -1,23 +1,27 @@
-package api
+package appserver
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
 	"testing"
+
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application/account"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application/backup"
+	"github.com/Manukesharwani09/photo-backup-manager/internal/application/restore"
 )
 
 type restoreResp struct {
-	Items           []restoreItem
+	Items           []restore.Item
 	AlreadyOnDevice int      `json:"already_on_device"`
 	MissingInGoogle []string `json:"missing_in_google"`
-	Tokens          map[int64]accessToken
+	Tokens          map[int64]account.AccessToken
 }
 
 func (e *env) restorePlan(device int64, folder string) restoreResp {
 	e.t.Helper()
 	var out restoreResp
-	e.call("POST", "/restore/plan", map[string]any{"device_id": device, "folder": folder}, http.StatusOK, &out)
+	e.call("POST", "/v1/restore/plan", map[string]any{"device_id": device, "folder": folder}, http.StatusOK, &out)
 	return out
 }
 
@@ -44,12 +48,12 @@ func TestRestoreToNewPhone(t *testing.T) {
 	var dev struct {
 		DeviceID int64 `json:"device_id"`
 	}
-	e.call("POST", "/devices", map[string]string{"model": "new"}, http.StatusCreated, &dev)
+	e.call("POST", "/v1/devices", map[string]string{"model": "new"}, http.StatusCreated, &dev)
 	got := e.restorePlan(dev.DeviceID, "DCIM")
 	if len(got.Items) != 2 {
 		t.Fatalf("new phone items: %+v", got)
 	}
-	var gpsItem *restoreItem
+	var gpsItem *restore.Item
 	for i := range got.Items {
 		it := got.Items[i]
 		if it.DownloadURL == "" || it.DownloadURL[len(it.DownloadURL)-2:] != "=d" || it.AccountID != e.primary {
@@ -78,30 +82,30 @@ func TestRestoreToNewPhone(t *testing.T) {
 	}
 	items = append(items, map[string]any{"media_id": 999999, "relative_path": "X", "display_name": "x.jpg", "sha256": hexSum("x")})
 	items = append(items, map[string]any{"media_id": got.Items[0].MediaID, "relative_path": "X", "display_name": "bad.jpg", "sha256": "zz"})
-	e.call("POST", "/restore/done", map[string]any{"device_id": dev.DeviceID, "items": items}, http.StatusOK, &done)
+	e.call("POST", "/v1/restore/done", map[string]any{"device_id": dev.DeviceID, "items": items}, http.StatusOK, &done)
 	if done.Linked != 2 || len(done.Rejected) != 2 {
 		t.Fatalf("restore done: %+v", done)
 	}
 	// The new phone's next sync (its first: start point) and a later one must not upload the restored files.
-	newPhone := []syncFile{
+	newPhone := []backup.SyncFile{
 		{RelativePath: "DCIM/Camera", DisplayName: "gps.jpg", Size: 10, SHA256: hexSum("restored-gps.jpg"), Source: "camera"},
 		{RelativePath: "DCIM/Camera", DisplayName: "b.jpg", Size: 10, SHA256: hexSum("restored-b.jpg"), Source: "camera"},
 	}
 	for i := 0; i < 2; i++ {
-		var out syncResponse
-		e.call("POST", "/sync", map[string]any{"device_id": dev.DeviceID, "files": newPhone}, http.StatusOK, &out)
+		var out backup.SyncResponse
+		e.call("POST", "/v1/sync", map[string]any{"device_id": dev.DeviceID, "files": newPhone}, http.StatusOK, &out)
 		if len(out.Plan) != 0 || out.Counts["backed_up"] != 2 {
 			t.Fatalf("sync %d after restore: %+v", i, out)
 		}
 	}
 	// Restored copies point at the same Google items: the dashboard must not count them twice.
 	var d dashResp
-	e.call("GET", "/dashboard", nil, http.StatusOK, &d)
+	e.call("GET", "/v1/dashboard", nil, http.StatusOK, &d)
 	if d.Accounts[0].Items != 3 {
 		t.Fatalf("primary holds 3 photos, dashboard says %d", d.Accounts[0].Items)
 	}
 	var where struct{ Accounts []struct{ Items int } }
-	e.call("GET", "/photos/where?from=1970-01-01&to=2100-01-01", nil, http.StatusOK, &where)
+	e.call("GET", "/v1/photos/where?from=1970-01-01&to=2100-01-01", nil, http.StatusOK, &where)
 	if len(where.Accounts) != 0 {
 		t.Fatalf("test photos are undated, expected no dated matches: %+v", where)
 	}
@@ -117,7 +121,7 @@ func TestRestoreReportsItemsDeletedInGoogle(t *testing.T) {
 	r := e.sync(file("DCIM", "a.jpg", "A"))
 	e.uploadPlan(r.Plan)
 	var cleaned map[string]int64
-	e.call("POST", "/cleanup/done", map[string]any{"device_id": e.device, "file_ids": []int64{r.Plan[0].FileID}}, http.StatusOK, &cleaned)
+	e.call("POST", "/v1/cleanup/done", map[string]any{"device_id": e.device, "file_ids": []int64{r.Plan[0].FileID}}, http.StatusOK, &cleaned)
 	e.g.mu.Lock()
 	e.g.items = map[string]string{} // the user deleted it in Google Photos
 	e.g.mu.Unlock()
@@ -129,7 +133,7 @@ func TestRestoreReportsItemsDeletedInGoogle(t *testing.T) {
 
 func TestRestoreValidation(t *testing.T) {
 	e := setup(t)
-	e.call("POST", "/restore/plan", map[string]any{"device_id": e.device, "folder": "/"}, http.StatusBadRequest, nil)
-	e.call("POST", "/restore/plan", map[string]any{"device_id": 4242, "folder": "DCIM"}, http.StatusNotFound, nil)
-	e.call("POST", "/restore/done", map[string]any{"device_id": 4242, "items": []any{}}, http.StatusNotFound, nil)
+	e.call("POST", "/v1/restore/plan", map[string]any{"device_id": e.device, "folder": "/"}, http.StatusBadRequest, nil)
+	e.call("POST", "/v1/restore/plan", map[string]any{"device_id": 4242, "folder": "DCIM"}, http.StatusNotFound, nil)
+	e.call("POST", "/v1/restore/done", map[string]any{"device_id": 4242, "items": []any{}}, http.StatusNotFound, nil)
 }

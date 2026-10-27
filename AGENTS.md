@@ -17,9 +17,9 @@ Go 1.27 · PostgreSQL 18 (local, no Docker) · Google OAuth 2.0 · Google Photos
 
 ## Build / run / check
 ```bash
-gofmt -l . && go vet ./... && go build -o bin/server ./cmd/server
-./bin/server        # reads ./.env, auto-migrates DB "photobackup", serves http://localhost:8080
-TEST_DATABASE_URL='postgres:///photobackup_test?host=/var/run/postgresql' go test -count=1 -p 1 ./...
+make run            # go run ./cmd appserver: reads ./.env, migrates DB "photobackup", serves http://localhost:8080
+make check          # gofmt + vet + all tests (DB tests use photobackup_test)
+make migrate | make rollback n=1 | make build | make phonesim   (make help lists all)
 ```
 **All tests must pass before committing.** Add tests for every new behaviour, especially the edge cases. Record what is and isn't covered in `docs/progress/status.md`.
 If `go` prints nothing (snap wrapper inside a sandbox), use `/snap/go/current/bin/go`. Full details: [docs/setup/local-dev.md](docs/setup/local-dev.md).
@@ -35,15 +35,24 @@ If `go` prints nothing (snap wrapper inside a sandbox), use `/snap/go/current/bi
    - There is **no delete** API.
    - Albums are flat.
    - The quota is 10k requests per day per project.
-7. **Schema changes go in a new numbered file in `internal/store/migrations/`.** Make it idempotent. Never edit an applied migration.
-8. **Google sign-in for real accounts is done by the user in their own browser.** Never enter Google passwords.
+7. **Schema changes are a new numbered pair `migrations/NNN_name.up.sql` + `.down.sql`.** Make the up idempotent. Never edit an applied migration.
+8. **Follow the layering and conventions in [docs/architecture/code-layout.md](docs/architecture/code-layout.md)** (Horizon-style):
+   - controller → service → repository;
+   - `httperror` for client errors;
+   - typed enums;
+   - `/v1` routes;
+   - masked emails in logs.
+9. **Google sign-in for real accounts is done by the user in their own browser.** Never enter Google passwords.
 
 ## Key locations
 | Path | What |
 |---|---|
-| `cmd/server/main.go` | Entry point |
-| `internal/api/` | HTTP handlers (`Server.Routes` lists all routes) |
-| `internal/google/` | OAuth scopes/config and Google REST calls |
-| `internal/store/` | Postgres access + migrations |
-| `internal/crypto/` | Token encryption |
+| `cmd/main.go` | Entry point (`appserver`, `migrate`, `rollback N`) |
+| `internal/application/<feature>/` | Business features: `controller.go`, `service.go`, `dto.go`; wired in `application/service.go` |
+| `internal/infrastructure/appserver/routes.go` | The full API (`NewRouter`); end-to-end tests live next to it |
+| `internal/entity/`, `internal/enum/` | Table structs, typed enums |
+| `internal/planner/` | Pure decision rules (most edge-case unit tests) |
+| `internal/infrastructure/repository/` | All SQL |
+| `internal/infrastructure/client/google/` | Google OAuth + REST calls |
+| `migrations/` | Versioned up/down SQL |
 | `docs/` | Everything else. Start at `docs/README.md` |

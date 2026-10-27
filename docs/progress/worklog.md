@@ -2,6 +2,26 @@
 
 One entry per task (not per commit), newest first. Each entry says what was done, which commits it covers, and anything a future agent must know.
 
+## 2026-10-27: Restructured to the Horizon layout
+- Commits:
+  - `e3c30d5` (stage A: infrastructure packages, top-level migrations, cmd sub-commands, Makefile);
+  - `9fa78c6` (stage B: entity/enum, versioned up/down migrations + rollback, audit columns, soft-deleted rules);
+  - stage C (application layer, appserver, httperror, logger, `/v1` routes).
+- Follows the team coding practices (the `tap-coding-practices` skill), adapted to the standard library and pgx (no Gin or GORM):
+  - controller → service → repository, wired in `application.NewServices`;
+  - `httperror` codes;
+  - `UPPER_SNAKE` constants and typed enums;
+  - structured `slog` with correlation ids and masked emails.
+- **API change:** all routes moved under `/v1` (phonesim is updated). `/oauth/*` is unchanged because the callback is registered with Google.
+- **Behaviour changes:**
+  - 500 responses no longer include internal error text, only a correlation id for the log;
+  - a failed OAuth code exchange is now a 502 instead of a 500.
+- Live DB upgraded to tracked migrations (5 applied). The data was untouched.
+- Smoke test passed: phonesim sync, dashboard, correlation id; the old paths return 404.
+- Gotchas:
+  - A package-level func named like an imported package (e.g. `account`) breaks the build. The test helper was renamed `callerAccount`.
+  - Set headers in tests with `Header.Set` (canonical keys), not map assignment.
+
 ## 2026-10-24: Account ownership + data-model doc
 - Commit `1b53e1b`. Migration 004:
   - `account.google_sub`;

@@ -5,7 +5,7 @@
 GO ?= $(shell command -v /snap/go/current/bin/go || command -v go)
 TEST_DATABASE_URL ?= postgres:///photobackup_test?host=/var/run/postgresql
 
-.PHONY: help run migrate rollback build test check fmt testdb phonesim testdata
+.PHONY: help run migrate rollback build test check fmt testdb phonesim live-check testdata
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -39,6 +39,9 @@ testdb: ## Create the disposable test database (once)
 
 phonesim: ## Run the stand-in phone against testdata/phone
 	$(GO) run ./cmd/phonesim -dir testdata/phone
+
+live-check: ## Exercise every API against REAL Google (server running, accounts connected, make build first)
+	python3 -I scripts/live_check.py
 
 testdata: ## Generate test photos: make testdata set=before|after
 	python3 -I scripts/gen_testdata.py testdata/phone $(set)

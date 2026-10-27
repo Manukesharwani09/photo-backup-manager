@@ -32,6 +32,22 @@ Legend: ✅ done · 🟡 built, not yet verified · ⬜ not started
 
 If every row reaches ✅, the backend side is proven, and the Android app becomes ordinary work: MediaStore scan, hashing, WorkManager, delete requests and UI.
 
+## Live verification
+`make live-check` (`scripts/live_check.py`) last ran on **2026-10-27: 33/33 passed against real Google**:
+- accounts and sign-in redirect;
+- new uploads (with album names, and the duplicate copy skipped);
+- the already-backed-up path and refused re-upload;
+- validation errors;
+- cleanup (the protected bill is kept);
+- restore (and no re-upload afterwards);
+- Similar, To delete and the cloud check;
+- dashboard and photos/where;
+- account full → overflow → available → current.
+
+The server log showed no unmasked emails and no errors.
+
+**Not covered live:** deletion detection after the user actually deletes in Google Photos (the API can't delete; covered with a fake Google), plus A4–A6.
+
 ## Test coverage (what is and isn't tested)
 Run with: see [../setup/local-dev.md](../setup/local-dev.md#tests). All passing on 2026-10-24.
 

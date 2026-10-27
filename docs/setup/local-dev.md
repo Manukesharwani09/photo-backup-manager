@@ -32,6 +32,13 @@ make test                   # = TEST_DATABASE_URL=…/photobackup_test go test -
 ```
 `-p 1` matters: the `repository` and `appserver` packages share the test DB, so they must not run in parallel. Without `TEST_DATABASE_URL`, the DB tests in `internal/infrastructure/repository` and `internal/infrastructure/appserver` are skipped, and the rest still run. **Never point `TEST_DATABASE_URL` at `photobackup`.**
 
+## Live check against real Google
+With the server running and both accounts connected:
+```bash
+make build && make live-check      # scripts/live_check.py: 33 checks across every endpoint
+```
+It uploads a few new labelled test photos to the real accounts each run, including one to the overflow account through the full → switch → back flow. Delete them in Google Photos whenever you like. `--skip-switch` leaves out the account switch.
+
 ## Connect Google accounts
 Open these in a browser where the account is signed in:
 - `http://localhost:8080/oauth/start?role=primary`

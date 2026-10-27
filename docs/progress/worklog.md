@@ -2,6 +2,16 @@
 
 One entry per task (not per commit), newest first. Each entry says what was done, which commits it covers, and anything a future agent must know.
 
+## 2026-10-27: Live check of every API + account state endpoints
+- Commit `99dc9a1`: added `POST /v1/accounts/{id}/available` (clear full) and `POST /v1/accounts/{id}/current` (manual switch; 409 if full or disabled). There was no way to undo "full" before.
+- Added `scripts/live_check.py` (`make live-check`). **33/33 passed against real Google.**
+- Test photos now in Google:
+  - `mkesharwani125`: `live-*.jpg`, `live-bill-*.jpg`;
+  - `tanyamishra12346789`: `live-switch-*.jpg`.
+
+  Each run adds a few more.
+- Primary is current again after the run.
+
 ## 2026-10-27: Restructured to the Horizon layout
 - Commits:
   - `e3c30d5` (stage A: infrastructure packages, top-level migrations, cmd sub-commands, Makefile);
